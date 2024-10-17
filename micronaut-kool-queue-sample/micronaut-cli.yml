@@ -1,0 +1,6 @@
+applicationType: default
+defaultPackage: com.freesoullabs
+testFramework: junit
+sourceLanguage: kotlin
+buildTool: gradle_kotlin
+features: [ app-name, data, data-jpa, gradle, http-client-test, jdbc-hikari, junit, kotlin, kotlin-application, ksp, logback, micronaut-aot, micronaut-build, micronaut-http-validation, netty-server, postgres, readme, serialization-jackson, shade, static-resources, testcontainers, yaml, yaml-build ]

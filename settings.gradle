@@ -1,0 +1,4 @@
+rootProject.name = 'micronaut-kool-queue'
+
+include 'micronaut-kool-queue-core'
+include 'micronaut-kool-queue-sample'

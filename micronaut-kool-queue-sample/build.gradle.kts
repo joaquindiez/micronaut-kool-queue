@@ -14,6 +14,15 @@ group = "com.freesoullabs"
 val kotlinVersion = project.properties.get("kotlinVersion")
 repositories {
   mavenCentral()
+
+  maven {
+    name = "GitHubPackages"
+    url = uri("https://maven.pkg.github.com/joaquindiez/micronaut-kool-queue")
+    credentials {
+      username = project.findProperty("gpr.user") as String? ?: System.getenv("GPR_USERNAME")
+      password = project.findProperty("gpr.key") as String? ?: System.getenv("GPR_TOKEN")
+    }
+  }
   mavenLocal()
 }
 
@@ -28,7 +37,7 @@ dependencies {
   implementation("org.jetbrains.kotlin:kotlin-reflect:${kotlinVersion}")
   implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${kotlinVersion}")
 
-  implementation("freesoullabs:kool-queue:0.1.2-SNAPSHOT")
+  implementation("joaquindiez:micronaut-kool-queue-core:0.1.3")
   compileOnly("io.micronaut:micronaut-http-client")
   runtimeOnly("ch.qos.logback:logback-classic")
   runtimeOnly("com.fasterxml.jackson.module:jackson-module-kotlin")

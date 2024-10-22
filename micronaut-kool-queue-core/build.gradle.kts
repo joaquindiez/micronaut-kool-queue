@@ -7,12 +7,15 @@ plugins {
     id("io.micronaut.library") version "4.4.0"
     id("io.micronaut.aot") version "4.4.0"
     id("maven-publish")
+    id("signing")
 }
 
-version = "0.1.2"
+
+version = "0.1.3"
 group = "joaquindiez"
 
 val kotlinVersion=project.properties.get("kotlinVersion")
+
 repositories {
     mavenCentral()
 }
@@ -68,19 +71,20 @@ micronaut {
 }
 
 
+
 publishing {
 
     publications {
-        create<MavenPublication>("koolQueue") {
+        create<MavenPublication>("mavenJava") {
             from(components["java"])
-            groupId = "joaquindiez"
+            groupId = "com.joaquindiez"
             artifactId = "micronaut-kool-queue-core"
             version = "0.1.2"
 
 
             pom {
                 name.set("micronaut-kool-queue-core")
-                description.set("Description of your package")
+                description.set("Library to implement asyncronous application in Micronaut using queues in relational databases")
                 url.set("https://github.com/joaquindiez/micronaut-kool-queue")
                 licenses {
                     license {
@@ -107,14 +111,26 @@ publishing {
        /* maven {
             name = "localMaven"
             url = uri("file:///Users/j10/.m2/repository/") // Define un directorio local para el repositorio
-        }*/
+        }
 
         maven {
             name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/joaquindiez/kool-queue")
+            url = uri("https://maven.pkg.github.com/joaquindiez/micronaut-kool-queue")
             credentials {
                 username = project.findProperty("gpr.user") as String? ?: System.getenv("USERNAME")
                 password = project.findProperty("gpr.key") as String? ?: System.getenv("TOKEN")
+            }
+        }
+
+        */
+
+        maven {
+            name = "sonatype"
+            url = uri("https://oss.sonatype.org/service/local/staging/deploy/maven2/")
+
+            credentials {
+                username = project.findProperty("sonatypeUsername") as String? ?: ""
+                password = project.findProperty("sonatypePassword") as String? ?: ""
             }
         }
     }
@@ -123,4 +139,9 @@ publishing {
             from(components["java"])
         }
     }
+
+}
+
+signing {
+    sign(publishing.publications["mavenJava"])
 }

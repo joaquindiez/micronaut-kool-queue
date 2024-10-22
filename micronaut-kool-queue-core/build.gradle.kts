@@ -12,7 +12,7 @@ plugins {
 
 
 version = "0.1.3"
-group = "joaquindiez"
+group = "com.joaquindiez"
 
 val kotlinVersion=project.properties.get("kotlinVersion")
 
@@ -54,7 +54,7 @@ micronaut {
     testRuntime("junit5")
     processing {
         incremental(true)
-        annotations("freesoullabs.*")
+        annotations("com.joaquindiez.*")
     }
     aot {
     // Please review carefully the optimizations enabled below
@@ -96,7 +96,7 @@ publishing {
                     developer {
                         id.set("joaquindiez")
                         name.set("Joaquin Diez")
-                        email.set("joaquindiez@freesoullabs.com")
+                        email.set("me@joaqundiez.com")
                     }
                 }
                 scm {

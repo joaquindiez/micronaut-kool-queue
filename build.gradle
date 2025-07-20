@@ -1,5 +1,6 @@
 plugins {
     id "com.github.hierynomus.license" version "0.16.1"
+    id("io.github.gradle-nexus.publish-plugin") version "2.0.0"
 }
 
 allprojects {
@@ -14,4 +15,18 @@ allprojects {
         exclude "**/*.parquet"
         exclude "**/dockerfile"
     }
+}
+
+nexusPublishing {
+    repositories {
+        sonatype {
+            nexusUrl = uri("https://ossrh-staging-api.central.sonatype.com/service/local/")
+            snapshotRepositoryUrl = uri("https://central.sonatype.com/repository/maven-snapshots/")
+            username = project.findProperty("centralUsername") ?: System.getenv("CENTRAL_USERNAME") ?: ""
+            password = project.findProperty("centralPassword") ?: System.getenv("CENTRAL_PASSWORD") ?: ""
+        }
+    }
+    useStaging = false
+    connectTimeout = Duration.ofMinutes(3)
+    clientTimeout = Duration.ofMinutes(3)
 }

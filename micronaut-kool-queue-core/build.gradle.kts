@@ -36,12 +36,16 @@ dependencies {
 
 
     implementation("com.github.f4b6a3:uuid-creator:5.3.7")
-
+    
+    // SLF4J API only - consumers choose their logging implementation
+    implementation("org.slf4j:slf4j-api:2.0.7")
 
     compileOnly("io.micronaut:micronaut-http-client")
-    runtimeOnly("ch.qos.logback:logback-classic")
     runtimeOnly("com.fasterxml.jackson.module:jackson-module-kotlin")
+    
+    // Test dependencies
     testImplementation("io.micronaut:micronaut-http-client")
+    testRuntimeOnly("ch.qos.logback:logback-classic")  // Only for tests
 }
 
 
@@ -73,7 +77,7 @@ micronaut {
         optimizeClassLoading = true
         deduceEnvironment = true
         optimizeNetty = true
-        replaceLogbackXml = true
+        replaceLogbackXml = false  // Disabled to avoid logback dependency
     }
 }
 
@@ -120,7 +124,13 @@ publishing {
 
 signing {
     useGpgCmd()
-    sign(publishing.publications["maven"])
+    // Only sign when publishing to remote repositories
+    val isCI = System.getenv("CI") != null
+    val hasSigningProps = project.hasProperty("signing.keyId")
+    
+    if (isCI || hasSigningProps) {
+        sign(publishing.publications["maven"])
+    }
 }
 
 java {

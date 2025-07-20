@@ -201,18 +201,75 @@ This creates a ZIP file in `micronaut-kool-queue-core/build/distributions/` cont
 
 ### 4. Local Testing
 
-Test your configuration locally before publishing:
+Test your library locally before publishing to Maven Central:
 
+#### Publish to Local Maven Repository
 ```bash
-# Build and test
+# Build and publish to local repository
 ./gradlew :micronaut-kool-queue-core:build
-
-# Publish to local Maven repository
 ./gradlew :micronaut-kool-queue-core:publishToMavenLocal
 
 # Verify local publication
-ls ~/.m2/repository/com/joaquindiez/micronaut-kool-queue-core/
+ls ~/.m2/repository/com/joaquindiez/micronaut-kool-queue-core/0.2.0/
 ```
+
+#### Test in a Local Project
+
+1. **Create a test Micronaut project:**
+```bash
+mn create-app test-kool-queue --features=data-jdbc,postgresql --lang=kotlin
+cd test-kool-queue
+```
+
+2. **Configure the dependency in `build.gradle.kts`:**
+```kotlin
+repositories {
+    mavenLocal()  // IMPORTANT: Add BEFORE mavenCentral()
+    mavenCentral()
+}
+
+dependencies {
+    implementation("com.joaquindiez:micronaut-kool-queue-core:0.2.0")
+    // ... other dependencies
+}
+```
+
+3. **Use the library in your code:**
+```kotlin
+import com.joaquindiez.koolQueue.services.KoolQueueJobsService
+import com.joaquindiez.koolQueue.domain.KoolQueueJobs
+import jakarta.inject.Inject
+import java.util.*
+
+@Controller
+class TestController {
+    
+    @Inject
+    lateinit var koolQueueJobsService: KoolQueueJobsService
+    
+    @Get("/test-queue")
+    fun testQueue(): String {
+        val job = KoolQueueJobs(
+            jobId = UUID.randomUUID(),
+            className = "com.example.TestJob",
+            metadata = """{"message": "Hello from Kool Queue!"}"""
+        )
+        
+        koolQueueJobsService.addTask(job)
+        return "Job added successfully!"
+    }
+}
+```
+
+4. **Run the test project:**
+```bash
+./gradlew run
+```
+
+5. **Verify it works:**
+- Visit `http://localhost:8080/test-queue`
+- Check your database for the queued job
+- Monitor the scheduled job processor logs
 
 ## Using the Published Library
 

@@ -13,3 +13,12 @@ out/
 .settings
 .classpath
 .factorypath
+
+# Security: Never commit sensitive files
+gradle.properties.local
+**/gradle.properties.local
+.secrets/
+*.key
+*.p12
+*.jks
+secring.gpg

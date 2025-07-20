@@ -113,22 +113,7 @@ java {
 
 ### 2. Credentials Configuration
 
-#### Option A: Project `gradle.properties` (Not Recommended for Production)
-```properties
-group=com.joaquindiez
-version=0.2.0-SNAPSHOT
-
-# Sonatype Central Portal credentials
-centralUsername=YOUR_CENTRAL_USERNAME
-centralPassword=YOUR_CENTRAL_PASSWORD
-
-# GPG signing configuration
-signing.keyId=YOUR_GPG_KEY_ID
-signing.password=YOUR_GPG_PASSPHRASE
-signing.secretKeyRingFile=/path/to/secring.gpg
-```
-
-#### Option B: Global `~/.gradle/gradle.properties` (Recommended)
+#### Option A: Global `~/.gradle/gradle.properties` (Recommended)
 ```properties
 # Sonatype Central Portal credentials
 centralUsername=YOUR_CENTRAL_USERNAME
@@ -140,7 +125,7 @@ signing.password=YOUR_GPG_PASSPHRASE
 signing.secretKeyRingFile=/Users/youruser/.gnupg/secring.gpg
 ```
 
-#### Option C: Environment Variables
+#### Option B: Environment Variables
 ```bash
 export CENTRAL_USERNAME="your_username"
 export CENTRAL_PASSWORD="your_password"

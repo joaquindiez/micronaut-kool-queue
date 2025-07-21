@@ -34,7 +34,6 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect:${kotlinVersion}")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${kotlinVersion}")
 
-
     implementation("com.github.f4b6a3:uuid-creator:5.3.7")
     
     // SLF4J API only - consumers choose their logging implementation
@@ -124,12 +123,12 @@ publishing {
 
 signing {
     useGpgCmd()
-    // Only sign when publishing to remote repositories
-    val isCI = System.getenv("CI") != null
-    val hasSigningProps = project.hasProperty("signing.keyId")
+    // Always configure signing but only sign when signing properties are present
+    sign(publishing.publications["maven"])
     
-    if (isCI || hasSigningProps) {
-        sign(publishing.publications["maven"])
+    // Make signing conditional based on properties
+    tasks.withType<Sign>().configureEach {
+        onlyIf { project.hasProperty("signing.keyId") }
     }
 }
 
@@ -189,9 +188,63 @@ fun createChecksums(file: File) {
     println("Generated checksums for ${file.name}")
 }
 
-// Task to create a ZIP bundle for manual upload to Central Portal
+// Task to manually sign files for bundle creation
+tasks.register("signFilesForBundle") {
+    dependsOn("generatePomFileForMavenPublication", "jar", "sourcesJar", "javadocJar", "generateChecksums")
+    
+    doFirst {
+        if (!project.hasProperty("signing.keyId")) {
+            throw GradleException("""
+                Bundle creation requires GPG signing. Run with:
+                ./gradlew createPublishingBundle -Psigning.keyId=XXXX -Psigning.password="thepwed!"
+            """.trimIndent())
+        }
+    }
+    
+    doLast {
+        val keyId = project.property("signing.keyId").toString()
+        val password = project.property("signing.password").toString()
+        val libsDir = layout.buildDirectory.dir("libs").get().asFile
+        val publicationsDir = layout.buildDirectory.dir("publications/maven").get().asFile
+        val artifactId = project.name
+        val version = project.version.toString()
+        
+        // Sign all files
+        val filesToSign = listOf(
+            File(libsDir, "$artifactId-$version.jar"),
+            File(libsDir, "$artifactId-$version-sources.jar"),
+            File(libsDir, "$artifactId-$version-javadoc.jar"),
+            File(publicationsDir, "pom-default.xml")
+        )
+        
+        filesToSign.forEach { file ->
+            if (file.exists()) {
+                val signatureFile = File(file.parent, "${file.name}.asc")
+                exec {
+                    commandLine("gpg", "--batch", "--yes", "--pinentry-mode", "loopback", 
+                               "--passphrase", password, "--detach-sign", "--armor", 
+                               "--local-user", keyId, "--output", signatureFile.absolutePath, 
+                               file.absolutePath)
+                }
+                println("Signed ${file.name}")
+            }
+        }
+    }
+}
+
+// Task to create a ZIP bundle for manual upload to Central Portal (with signing)
 tasks.register<Zip>("createPublishingBundle") {
-    dependsOn("generatePomFileForMavenPublication", "generateMetadataFileForMavenPublication", "signMavenPublication", "jar", "sourcesJar", "javadocJar", "generateChecksums")
+    dependsOn("generatePomFileForMavenPublication", "generateMetadataFileForMavenPublication", "jar", "sourcesJar", "javadocJar", "generateChecksums", "signFilesForBundle")
+    
+    doFirst {
+        // For bundle creation, we need signing - use explicit command
+        if (!project.hasProperty("signing.keyId")) {
+            throw GradleException("""
+                Bundle creation requires GPG signing. Run with:
+                ./gradlew createPublishingBundle -Psigning.keyId=XXXX -Psigning.password="thepwed!"
+            """.trimIndent())
+        }
+    }
     
     archiveFileName.set("${project.name}-${project.version}-bundle.zip")
     destinationDirectory.set(layout.buildDirectory.dir("distributions"))

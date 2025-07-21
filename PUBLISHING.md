@@ -144,6 +144,19 @@ export ORG_GRADLE_PROJECT_signing.password="your_passphrase"
 
 ### 1. Snapshot Publishing (Development)
 
+
+
+Summary
+
+Both workflows now work independently and correctly:
+
+1. Local Development: ./gradlew :micronaut-kool-queue-core:publishToMavenLocal
+   - Works without GPG signing (signMavenPublication task is SKIPPED)
+   - Perfect for local testing and development
+2. Production Bundle: ./gradlew :micronaut-kool-queue-core:createPublishingBundle -Psigning.keyId=265E22ED -Psigning.password="only4theWeak!"
+   - Creates properly signed bundle for Maven Central
+   - All files include .asc signatures, MD5/SHA1 checksums
+   - Ready for upload to https://central.sonatype.com/publishing/deployments
 For development versions, use `-SNAPSHOT` suffix:
 
 ```properties

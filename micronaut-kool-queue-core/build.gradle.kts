@@ -1,5 +1,3 @@
-import java.security.MessageDigest
-
 plugins {
     id("org.jetbrains.kotlin.jvm") version "1.9.23"
     id("org.jetbrains.kotlin.plugin.allopen") version "1.9.23"
@@ -9,7 +7,6 @@ plugins {
     id("io.micronaut.library") version "4.4.0"
     id("io.micronaut.aot") version "4.4.0"
     id("maven-publish")
-    id("signing")
 }
 
 
@@ -85,7 +82,7 @@ micronaut {
 publishing {
     publications {
         create<MavenPublication>("maven") {
-            from(components["java"])
+            from(components["kotlin"])
             
             groupId = project.group.toString()
             artifactId = "micronaut-kool-queue-core"
@@ -121,187 +118,7 @@ publishing {
     }
 }
 
-signing {
-    useGpgCmd()
-    // Always configure signing but only sign when signing properties are present
-    sign(publishing.publications["maven"])
-    
-    // Make signing conditional based on properties
-    tasks.withType<Sign>().configureEach {
-        onlyIf { project.hasProperty("signing.keyId") }
-    }
-}
-
 java {
     withSourcesJar()
     withJavadocJar()
-}
-
-// Task to create checksums for Maven Central
-tasks.register("generateChecksums") {
-    dependsOn("jar", "sourcesJar", "javadocJar", "generatePomFileForMavenPublication")
-    
-    doLast {
-        val libsDir = layout.buildDirectory.dir("libs").get().asFile
-        val publicationsDir = layout.buildDirectory.dir("publications/maven").get().asFile
-        val artifactId = project.name
-        val version = project.version.toString()
-        
-        // Generate checksums for JAR files
-        listOf(
-            File(libsDir, "$artifactId-$version.jar"),
-            File(libsDir, "$artifactId-$version-sources.jar"),
-            File(libsDir, "$artifactId-$version-javadoc.jar")
-        ).forEach { file ->
-            if (file.exists()) {
-                createChecksums(file)
-            }
-        }
-        
-        // Generate checksums for POM
-        val pomFile = File(publicationsDir, "pom-default.xml")
-        if (pomFile.exists()) {
-            createChecksums(pomFile)
-        }
-    }
-}
-
-fun createChecksums(file: File) {
-    val md5 = MessageDigest.getInstance("MD5")
-    val sha1 = MessageDigest.getInstance("SHA-1")
-    
-    file.inputStream().use { input ->
-        val buffer = ByteArray(8192)
-        var bytesRead: Int
-        while (input.read(buffer).also { bytesRead = it } != -1) {
-            md5.update(buffer, 0, bytesRead)
-            sha1.update(buffer, 0, bytesRead)
-        }
-    }
-    
-    val md5Hash = md5.digest().joinToString("") { byte -> "%02x".format(byte) }
-    val sha1Hash = sha1.digest().joinToString("") { byte -> "%02x".format(byte) }
-    
-    File(file.parent, "${file.name}.md5").writeText(md5Hash)
-    File(file.parent, "${file.name}.sha1").writeText(sha1Hash)
-    
-    println("Generated checksums for ${file.name}")
-}
-
-// Task to manually sign files for bundle creation
-tasks.register("signFilesForBundle") {
-    dependsOn("generatePomFileForMavenPublication", "jar", "sourcesJar", "javadocJar", "generateChecksums")
-    
-    doFirst {
-        if (!project.hasProperty("signing.keyId")) {
-            throw GradleException("""
-                Bundle creation requires GPG signing. Run with:
-                ./gradlew createPublishingBundle -Psigning.keyId=XXXX -Psigning.password="thepwed!"
-            """.trimIndent())
-        }
-    }
-    
-    doLast {
-        val keyId = project.property("signing.keyId").toString()
-        val password = project.property("signing.password").toString()
-        val libsDir = layout.buildDirectory.dir("libs").get().asFile
-        val publicationsDir = layout.buildDirectory.dir("publications/maven").get().asFile
-        val artifactId = project.name
-        val version = project.version.toString()
-        
-        // Sign all files
-        val filesToSign = listOf(
-            File(libsDir, "$artifactId-$version.jar"),
-            File(libsDir, "$artifactId-$version-sources.jar"),
-            File(libsDir, "$artifactId-$version-javadoc.jar"),
-            File(publicationsDir, "pom-default.xml")
-        )
-        
-        filesToSign.forEach { file ->
-            if (file.exists()) {
-                val signatureFile = File(file.parent, "${file.name}.asc")
-                exec {
-                    commandLine("gpg", "--batch", "--yes", "--pinentry-mode", "loopback", 
-                               "--passphrase", password, "--detach-sign", "--armor", 
-                               "--local-user", keyId, "--output", signatureFile.absolutePath, 
-                               file.absolutePath)
-                }
-                println("Signed ${file.name}")
-            }
-        }
-    }
-}
-
-// Task to create a ZIP bundle for manual upload to Central Portal (with signing)
-tasks.register<Zip>("createPublishingBundle") {
-    dependsOn("generatePomFileForMavenPublication", "generateMetadataFileForMavenPublication", "jar", "sourcesJar", "javadocJar", "generateChecksums", "signFilesForBundle")
-    
-    doFirst {
-        // For bundle creation, we need signing - use explicit command
-        if (!project.hasProperty("signing.keyId")) {
-            throw GradleException("""
-                Bundle creation requires GPG signing. Run with:
-                ./gradlew createPublishingBundle -Psigning.keyId=XXXX -Psigning.password="thepwed!"
-            """.trimIndent())
-        }
-    }
-    
-    archiveFileName.set("${project.name}-${project.version}-bundle.zip")
-    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    
-    // Create proper Maven directory structure
-    val groupPath = project.group.toString().replace('.', '/')
-    val artifactId = project.name
-    val version = project.version.toString()
-    val basePath = "$groupPath/$artifactId/$version"
-    
-    // Include POM with correct name and checksums
-    from(layout.buildDirectory.dir("publications/maven")) {
-        include("pom-default.xml")
-        include("pom-default.xml.md5")
-        include("pom-default.xml.sha1")
-        include("pom-default.xml.asc")
-        rename("pom-default.xml", "$artifactId-$version.pom")
-        rename("pom-default.xml.md5", "$artifactId-$version.pom.md5")
-        rename("pom-default.xml.sha1", "$artifactId-$version.pom.sha1")
-        rename("pom-default.xml.asc", "$artifactId-$version.pom.asc")
-        into(basePath)
-    }
-    
-    // Include main JAR, checksums, and signature
-    from(layout.buildDirectory.dir("libs")) {
-        include("$artifactId-$version.jar")
-        include("$artifactId-$version.jar.md5")
-        include("$artifactId-$version.jar.sha1")
-        include("$artifactId-$version.jar.asc")
-        into(basePath)
-    }
-    
-    // Include sources JAR, checksums, and signature
-    from(layout.buildDirectory.dir("libs")) {
-        include("$artifactId-$version-sources.jar")
-        include("$artifactId-$version-sources.jar.md5")
-        include("$artifactId-$version-sources.jar.sha1")
-        include("$artifactId-$version-sources.jar.asc")
-        into(basePath)
-    }
-    
-    // Include javadoc JAR, checksums, and signature
-    from(layout.buildDirectory.dir("libs")) {
-        include("$artifactId-$version-javadoc.jar")
-        include("$artifactId-$version-javadoc.jar.md5")
-        include("$artifactId-$version-javadoc.jar.sha1")
-        include("$artifactId-$version-javadoc.jar.asc")
-        into(basePath)
-    }
-    
-    doLast {
-        println("Publishing bundle created: ${archiveFile.get().asFile}")
-        println("Bundle structure for $groupPath/$artifactId/$version:")
-        zipTree(archiveFile.get().asFile).forEach { file ->
-            println("  ${file.path}")
-        }
-        println("\nUpload this ZIP to https://central.sonatype.com/publishing/deployments")
-    }
 }

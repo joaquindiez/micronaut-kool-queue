@@ -15,7 +15,8 @@
  */
  package com.freesoullabs
 
-import freesoullabs.koolQueue.jobs.ApplicationJob
+
+import com.joaquindiez.koolQueue.jobs.ApplicationJob
 import jakarta.inject.Singleton
 import org.slf4j.LoggerFactory
 

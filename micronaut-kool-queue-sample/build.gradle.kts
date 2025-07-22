@@ -37,7 +37,9 @@ dependencies {
   implementation("org.jetbrains.kotlin:kotlin-reflect:${kotlinVersion}")
   implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${kotlinVersion}")
 
-  implementation("joaquindiez:micronaut-kool-queue-core:0.1.3")
+  implementation(project(":micronaut-kool-queue-core"))
+
+
   compileOnly("io.micronaut:micronaut-http-client")
   runtimeOnly("ch.qos.logback:logback-classic")
   runtimeOnly("com.fasterxml.jackson.module:jackson-module-kotlin")

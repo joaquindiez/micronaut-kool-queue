@@ -118,7 +118,3 @@ publishing {
     }
 }
 
-java {
-    withSourcesJar()
-    withJavadocJar()
-}

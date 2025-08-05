@@ -37,6 +37,7 @@ dependencies {
   implementation("org.jetbrains.kotlin:kotlin-reflect:${kotlinVersion}")
   implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${kotlinVersion}")
 
+
   implementation(project(":micronaut-kool-queue-core"))
 
 
@@ -57,6 +58,10 @@ application {
 }
 java {
   sourceCompatibility = JavaVersion.toVersion("17")
+}
+
+kotlin {
+  jvmToolchain(17)
 }
 
 

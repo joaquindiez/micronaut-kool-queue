@@ -1,6 +1,21 @@
 micronaut:
   application:
     name: kool-queue-app-test
+  scheduler:
+    kool-queue:
+      max-concurrent-tasks: 2
+      enable-management-endpoints: true
+
+
+endpoints:
+  all:
+    enabled: true
+    sensitive: false
+  health:
+    enabled: true
+  kool-queue-scheduler:
+    enabled: true
+
 datasources:
   default:
     url: jdbc:postgresql://localhost:5432/postgres

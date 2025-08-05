@@ -19,19 +19,23 @@ import io.micronaut.aop.InterceptorBean
 import io.micronaut.aop.MethodInterceptor
 import io.micronaut.aop.MethodInvocationContext
 import jakarta.inject.Singleton
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 
 @InterceptorBean(KoolQueueProducer::class)
 @Singleton
 class KoolQueueProducerInterceptor : MethodInterceptor<Any, Any> {
+  
+  val logger: Logger = LoggerFactory.getLogger(this::class.java)
 
   override fun intercept(context: MethodInvocationContext<Any, Any>): Any? {
-    println("Antes de ejecutar el método: ${context.targetMethod.name}")
+    logger.info("Antes de ejecutar el método: ${context.targetMethod.name}")
 
     // Llamar al método original
     val result = context.proceed()
 
-    println("Después de ejecutar el método: ${context.targetMethod.name}")
+    logger.info("Después de ejecutar el método: ${context.targetMethod.name}")
 
     return result
   }

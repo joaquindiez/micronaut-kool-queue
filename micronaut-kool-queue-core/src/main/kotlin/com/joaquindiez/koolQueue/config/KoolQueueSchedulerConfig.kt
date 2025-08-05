@@ -13,24 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.joaquindiez.koolQueue.controller
+package com.joaquindiez.koolQueue.config
 
-import io.micronaut.http.HttpResponse
-import io.micronaut.http.annotation.Controller
-import io.micronaut.http.annotation.Get
-import com.joaquindiez.koolQueue.domain.KoolQueueJobs
-import com.joaquindiez.koolQueue.services.KoolQueueJobsService
+import io.micronaut.context.annotation.ConfigurationProperties
+import io.micronaut.context.annotation.Context
 
 
-@Controller("/v1/tasks")
-class TaskController(
-  private val taskService: KoolQueueJobsService, )  {
-
-
-  @Get
-  fun listTasks():HttpResponse<List<KoolQueueJobs>>{
-
-    return HttpResponse.ok(taskService.findAllTasks())
-  }
-
-}
+@ConfigurationProperties("micronaut.scheduler.kool-queue")
+@Context // Se crea automáticamente
+data class KoolQueueSchedulerConfig(
+  var enabled: Boolean = true,
+  var maxConcurrentTasks: Int = 2,
+  var defaultInterval: String = "30s",
+  var defaultInitialDelay: String = "10s",
+  var shutdownTimeoutSeconds: Long = 60,
+  var enableManagementEndpoints: Boolean = true,
+  var enableMetrics: Boolean = true
+)

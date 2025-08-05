@@ -36,6 +36,19 @@ open class KoolQueueJobsService(
     return this.jobsRepository.findAll()
   }
 
+  @Transactional
+  open fun findJobsPending(): List<KoolQueueJobs> {
+    return this.jobsRepository.findNextJobsPending()
+  }
+
+
+  @Transactional
+  open fun findInProgressTasks(): List<KoolQueueJobs> {
+    return this.jobsRepository.findInProgressTasks()
+  }
+
+
+
   /**
    *
    * just for demo purpose
@@ -49,30 +62,39 @@ open class KoolQueueJobsService(
 
   @Transactional
   open fun finishSuccessTask(task: KoolQueueJobs): KoolQueueJobs {
-    val i =  this.jobsRepository.update(task.id!!, TaskStatus.DONE, LocalDateTime.now())
+    this.jobsRepository.update(task.id!!, TaskStatus.DONE, LocalDateTime.now())
     return task
   }
 
   @Transactional
   open fun finishOnErrorTask(task: KoolQueueJobs): KoolQueueJobs {
-    val i =  this.jobsRepository.update(task.id!!, TaskStatus.ERROR, LocalDateTime.now())
+     this.jobsRepository.update(task.id!!, TaskStatus.ERROR, LocalDateTime.now())
     return task
   }
 
 
   @Transactional
-  open fun findNextJobsPending(): List<KoolQueueJobs>  {
+  open fun findNextJobsPending(limit : Int = 1): List<KoolQueueJobs>  {
 
-    val taskList = this.jobsRepository.findNextJobsPending()
+    val taskList = this.jobsRepository.findNextJobsPending(limit = limit)
     logger.debug("Result find Task $taskList")
     for (task in taskList) {
       // Si se encuentra la tarea, se procesa y actualiza su estado
       task.let {
         it.status = TaskStatus.IN_PROGRESS
-        val i =  this.jobsRepository.update(task.id!!, task.status)
+        this.jobsRepository.update(task.id!!, task.status)
       }
     }
     return taskList
   }
+
+
+  @Transactional
+  open fun findAllJobsPending(): List<KoolQueueJobs>  {
+    val taskList = this.jobsRepository.findAllJobsPending()
+    logger.debug("Result findAllJobsPending  $taskList")
+    return taskList
+  }
+
 
 }

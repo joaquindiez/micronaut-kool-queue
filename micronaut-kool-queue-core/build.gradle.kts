@@ -10,9 +10,11 @@ plugins {
 }
 
 
-version = project.findProperty("version") as String? ?: "0.2.0"
+version = project.findProperty("version") as String? ?: "0.2.4-SNAPSHOT"
 group = project.findProperty("group") as String? ?: "com.joaquindiez"
-
+val kotlinCoroutinesVersion = "1.7.3"
+val slf4jVersion = "2.0.7"
+val uuidCreatorVersion = "5.3.7"
 val kotlinVersion=project.properties.get("kotlinVersion")
 
 repositories {
@@ -31,10 +33,25 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect:${kotlinVersion}")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${kotlinVersion}")
 
-    implementation("com.github.f4b6a3:uuid-creator:5.3.7")
+    implementation("com.github.f4b6a3:uuid-creator:${uuidCreatorVersion}")
     
     // SLF4J API only - consumers choose their logging implementation
-    implementation("org.slf4j:slf4j-api:2.0.7")
+    implementation("org.slf4j:slf4j-api:${slf4jVersion}")
+
+
+    implementation("io.micronaut:micronaut-management")
+
+    // ==========================================
+    // COROUTINES
+    // ==========================================
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${kotlinCoroutinesVersion}")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:${kotlinCoroutinesVersion}")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactive:${kotlinCoroutinesVersion}")
+
+    // ==========================================
+    // SCHEDULING
+    // ==========================================
+  //  implementation("io.micronaut:micronaut-scheduling")
 
     compileOnly("io.micronaut:micronaut-http-client")
     runtimeOnly("com.fasterxml.jackson.module:jackson-module-kotlin")

@@ -15,9 +15,9 @@
  */
 package com.joaquindiez.koolQueue.jobs
 
+import com.joaquindiez.koolQueue.core.KoolQueueTask
 import io.micronaut.context.BeanContext
 import io.micronaut.json.JsonMapper
-import io.micronaut.scheduling.annotation.Scheduled
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
 import com.joaquindiez.koolQueue.services.KoolQueueJobsService
@@ -35,28 +35,39 @@ class KoolQueueScheduledJob(
 
   private val logger = LoggerFactory.getLogger(javaClass)
 
-  @Scheduled(fixedRate = "2s", fixedDelay = "5s")
-  fun checkNextSendEmailTask() {
+  //@Scheduled(fixedRate = "2s", fixedDelay = "5s")
+  @KoolQueueTask(name = "checkKoolTasksTasks", interval = "2s", initialDelay = "10s")
+  fun checkPendingTasks() {
 
-    logger.info("Check next Jobs to Run")
-    val sendEmailTasks =  taskService.findNextJobsPending()
+    val nextPendingTasks =  taskService.findNextJobsPending(limit = 1)
+    logger.debug("Check next Jobs to Run pending jobs to Run ${nextPendingTasks.size}")
 
-    for (jobTask in sendEmailTasks) {
+    for (jobTask in nextPendingTasks) {
 
       val className = jobTask.className
-      //val applicationJob: ApplicationJob<*>? = beanContext.getBean(ApplicationJob::class.java,  Qualifiers.byName(beanName))
       val applicationJob = beanContext.getBean(Class.forName(className))
       val inputStream = ByteArrayInputStream(jobTask.metadata.toByteArray())
       if (applicationJob is ApplicationJob<*>?) {
-        val sendSurveyTask = jsonMapper.readValue(inputStream, applicationJob.getType())
-        val result = applicationJob.process(sendSurveyTask!!)
-        result.fold(
-          onSuccess = {   taskService.finishSuccessTask(jobTask) },
-          onFailure = {   taskService.finishOnErrorTask(jobTask)}
-        )
+        val koolTask = jsonMapper.readValue(inputStream, applicationJob.getType())
+        try {
+          val result = applicationJob.process(koolTask!!)
+          result.fold(
+            onSuccess = {
+              logger.info("Job taskId=${jobTask.jobId} className=$className finished successfully")
+              taskService.finishSuccessTask(jobTask)
+            },
+            onFailure = {
+              logger.error("Job taskId=${jobTask.jobId} className=$className finished onError")
+              taskService.finishOnErrorTask(jobTask)
+            }
+          )
+        }catch (ex: Exception){
+          logger.error("Job taskId=${jobTask.jobId} className=$className UnExpected failure")
+          taskService.finishOnErrorTask(jobTask)
+        }
 
       }else{
-        logger.error("Job className=$className not valid")
+        logger.error("Job className=$className not valid taskId=${jobTask.jobId}")
         taskService.finishOnErrorTask(jobTask)
       }
     }

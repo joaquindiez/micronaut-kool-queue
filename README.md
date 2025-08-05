@@ -30,7 +30,7 @@ Step 2. Add the dependency
 
 ```
 dependencies {
-	        implementation 'com.github.joaquindiez:micronaut-kool-queue:Tag'
+	        implementation 'com.github.joaquindiez:micronaut-kool-queue:0.2.4-SNAPSHOT'
 	}
 
 ```
@@ -55,7 +55,7 @@ Step 2. Add the dependency
 
 ```
 dependencies {
-	        implementation("com.github.joaquindiez:micronaut-kool-queue:Tag")
+	        implementation("com.github.joaquindiez:micronaut-kool-queue:0.2.4-SNAPSHOT")
 	}
 
 ```
@@ -79,7 +79,7 @@ Step 2. Add the dependency
 <dependency>
 	    <groupId>com.github.joaquindiez</groupId>
 	    <artifactId>micronaut-kool-queue</artifactId>
-	    <version>Tag</version>
+	    <version>0.2.4-SNAPSHOT</version>
 	</dependency>
 ```
 

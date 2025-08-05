@@ -26,11 +26,7 @@ class TestJobs : ApplicationJob<String>() {
 
   private val logger = LoggerFactory.getLogger(javaClass)
 
-  override fun getType(): Class<String> {
-    return String::class.java
-  }
-
-  override fun process(data: Any): Result<Boolean> {
+  override fun process(data: String): Result<Boolean> {
     logger.info("Procesando Test Jobs -> $data")
     return Result.success(true)
   }

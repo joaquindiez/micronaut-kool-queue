@@ -14,23 +14,105 @@
  * limitations under the License.
  */
 package com.joaquindiez.koolQueue.jobs
+// ==========================================
+// SOLUCIÓN 1: @PostConstruct (Recomendada)
+// ==========================================
 
-import jakarta.inject.Inject
+
 import com.joaquindiez.koolQueue.BasicKoolQueueMessageProducer
+import jakarta.inject.Inject
+import jakarta.annotation.PostConstruct
+import org.slf4j.LoggerFactory
+import java.lang.reflect.ParameterizedType
 
-abstract class ApplicationJob<T> {
-  abstract fun process(data: Any): Result<Boolean>
-  abstract fun getType(): Class<T>
+abstract class ApplicationJob<T : Any> {
+
+  private val logger = LoggerFactory.getLogger(javaClass)
 
   @Inject
   private lateinit var basicKoolQueueMessageProducer: BasicKoolQueueMessageProducer
 
-  private val messageProducer by lazy { basicKoolQueueMessageProducer }
+  // ✅ Se inicializa después de la inyección de dependencias
+  private lateinit var cachedDataType: Class<T>
 
-  fun processLater(data: Any): Result<Boolean> {
+  @PostConstruct
+  private fun initializeJob() {
+    try {
+      cachedDataType = detectDataType()
+      logger.debug("Initialized ${this::class.simpleName} with data type: ${cachedDataType.simpleName}")
+    } catch (e: Exception) {
+      logger.error("Failed to initialize data type for ${this::class.simpleName}", e)
+      throw IllegalStateException("Cannot initialize job ${this::class.simpleName}", e)
+    }
+  }
 
-    messageProducer.send(data, this::class.java)
+  @Suppress("UNCHECKED_CAST")
+  private fun detectDataType(): Class<T> {
+    // Usar Java reflection que es más confiable
+    val superclass = this.javaClass.genericSuperclass
 
-    return Result.success(true)
+    return when (superclass) {
+      is ParameterizedType -> {
+        val typeArguments = superclass.actualTypeArguments
+        if (typeArguments.isNotEmpty()) {
+          typeArguments[0] as Class<T>
+        } else {
+          throw IllegalStateException("No type arguments found for ${this::class.simpleName}")
+        }
+      }
+      else -> {
+        // Buscar en la jerarquía si no se encuentra directamente
+        findTypeInHierarchy()
+      }
+    }
+  }
+
+  @Suppress("UNCHECKED_CAST")
+  private fun findTypeInHierarchy(): Class<T> {
+    var currentClass: Class<*>? = this.javaClass
+
+    while (currentClass != null && currentClass != ApplicationJob::class.java) {
+      val genericSuperclass = currentClass.genericSuperclass
+
+      if (genericSuperclass is ParameterizedType &&
+        genericSuperclass.rawType == ApplicationJob::class.java) {
+
+        val typeArguments = genericSuperclass.actualTypeArguments
+        if (typeArguments.isNotEmpty()) {
+          return typeArguments[0] as Class<T>
+        }
+      }
+      currentClass = currentClass.superclass
+    }
+
+    throw IllegalStateException("Cannot find ApplicationJob<T> in class hierarchy for ${this::class.simpleName}")
+  }
+
+  fun getDataType(): Class<T> {
+    if (!::cachedDataType.isInitialized) {
+      throw IllegalStateException("Job not properly initialized. This should not happen with Micronaut.")
+    }
+    return cachedDataType
+  }
+
+  fun processLater(data: T) {
+    try {
+      val dataType = getDataType()
+      val jobType = this::class.java  // ← Pasar la clase del job
+
+      logger.debug("Enqueueing job of type: ${dataType.simpleName}")
+      basicKoolQueueMessageProducer.send(data, jobType)
+    } catch (e: Exception) {
+      logger.error("Failed to enqueue job", e)
+      throw e
+    }
+  }
+
+  abstract fun process(data: T): Result<Boolean>
+
+  internal fun processInternal(rawData: Any): Result<Boolean> {
+    @Suppress("UNCHECKED_CAST")
+    val typedData = rawData as T
+    return process(typedData)
   }
 }

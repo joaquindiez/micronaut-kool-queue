@@ -48,9 +48,11 @@ class KoolQueueScheduledJob(
       val applicationJob = beanContext.getBean(Class.forName(className))
       val inputStream = ByteArrayInputStream(jobTask.metadata.toByteArray())
       if (applicationJob is ApplicationJob<*>?) {
-        val koolTask = jsonMapper.readValue(inputStream, applicationJob.getType())
+        // Recuperar el tipo de datos
+        val dataType = applicationJob.getDataType()
+        val koolTaskData = jsonMapper.readValue(inputStream, dataType)
         try {
-          val result = applicationJob.process(koolTask!!)
+          val result = applicationJob.processInternal(koolTaskData!!)
           result.fold(
             onSuccess = {
               logger.info("Job taskId=${jobTask.jobId} className=$className finished successfully")

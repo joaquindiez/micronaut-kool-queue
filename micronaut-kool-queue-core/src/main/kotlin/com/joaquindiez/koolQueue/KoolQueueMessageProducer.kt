@@ -15,6 +15,8 @@
  */
 package com.joaquindiez.koolQueue
 
+import java.time.LocalDateTime
+
 interface KoolQueueMessageProducer {
-  fun send(msg: Any, className: Class<*>)
+  fun send(msg: Any, className: Class<*>,scheduledAt: LocalDateTime?)
 }

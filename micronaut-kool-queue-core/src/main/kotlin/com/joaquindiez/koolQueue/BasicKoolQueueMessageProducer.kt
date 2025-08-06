@@ -21,6 +21,7 @@ import jakarta.inject.Singleton
 import com.joaquindiez.koolQueue.domain.KoolQueueJobs
 import com.joaquindiez.koolQueue.domain.TaskStatus
 import com.joaquindiez.koolQueue.services.KoolQueueJobsService
+import java.time.LocalDateTime
 
 @Singleton
 class BasicKoolQueueMessageProducer(
@@ -28,15 +29,17 @@ class BasicKoolQueueMessageProducer(
   private val jsonMapper: JsonMapper,
 ) : KoolQueueMessageProducer {
 
-  override fun send(msg: Any, className: Class<*>) {
+  override fun send(msg: Any, className: Class<*>, scheduledAt: LocalDateTime?) {
     val json = jsonMapper.writeValueAsString(msg)
 
+    val scheduledTime = scheduledAt?: LocalDateTime.now()
     val uuidV7 = UuidCreator.getTimeOrderedEpoch()
     val task = KoolQueueJobs(
       jobId = uuidV7,
       className = className.canonicalName,
       status = TaskStatus.PENDING,
-      metadata = json
+      metadata = json,
+      scheduledAt = scheduledTime
     )
 
     taskService.addTask(task)

@@ -69,11 +69,14 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
             SELECT *
             FROM kool_queue_jobs
             WHERE status = ?
+              AND (scheduled_at IS NULL OR scheduled_at <= ?)
             FOR UPDATE SKIP LOCKED
         """.trimIndent()
 
     return jdbcTemplate.prepareStatement(sql) { statement ->
       statement.setString(1, TaskStatus.PENDING.name)
+      val nowTimeStamp = Timestamp.valueOf(LocalDateTime.now())
+      statement.setTimestamp(2, nowTimeStamp)
 
       val resultSet = statement.executeQuery()
       val jobList = mutableListOf<KoolQueueJobs>()
@@ -97,6 +100,7 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
         """.trimIndent()
 
     return jdbcTemplate.prepareStatement(sql) { statement ->
+
       statement.setString(1, TaskStatus.IN_PROGRESS.name)
 
       val resultSet = statement.executeQuery()
@@ -111,20 +115,22 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
     }
   }
 
-
-
   fun findNextJobsPending(limit: Int = 1): List<KoolQueueJobs> {
     val sql = """
             SELECT *
             FROM kool_queue_jobs
             WHERE status = ?
+             AND (scheduled_at IS NULL OR scheduled_at <= ?)
             FOR UPDATE SKIP LOCKED
             LIMIT ?
         """.trimIndent()
 
     return jdbcTemplate.prepareStatement(sql) { statement ->
       statement.setString(1, TaskStatus.PENDING.name)
-      statement.setInt(2, limit)
+
+      val nowTimeStamp = Timestamp.valueOf(LocalDateTime.now())
+      statement.setTimestamp(2, nowTimeStamp)
+      statement.setInt(3, limit)
 
       val resultSet = statement.executeQuery()
       val jobList = mutableListOf<KoolQueueJobs>()

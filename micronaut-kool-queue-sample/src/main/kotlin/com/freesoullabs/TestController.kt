@@ -17,6 +17,7 @@
 
 import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.Get
+import java.time.LocalDateTime
 
 
 @Controller("/task")
@@ -26,5 +27,11 @@ class TestController( val testJobs: TestJobs) {
   fun addTest(){
 
     testJobs.processLater("Hello")
+  }
+
+  @Get("/scheduled")
+  fun addTestScheduled(){
+
+    testJobs.processLater("Hello Scheduled", scheduledAt = LocalDateTime.now().plusHours(1))
   }
 }

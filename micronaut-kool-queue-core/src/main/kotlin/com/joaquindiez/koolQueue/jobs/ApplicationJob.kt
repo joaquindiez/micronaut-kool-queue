@@ -24,6 +24,7 @@ import jakarta.inject.Inject
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import java.lang.reflect.ParameterizedType
+import java.time.LocalDateTime
 
 abstract class ApplicationJob<T : Any> {
 
@@ -34,6 +35,10 @@ abstract class ApplicationJob<T : Any> {
 
   // ✅ Se inicializa después de la inyección de dependencias
   private lateinit var cachedDataType: Class<T>
+
+
+  abstract fun process(data: T): Result<Boolean>
+
 
   @PostConstruct
   private fun initializeJob() {
@@ -95,20 +100,19 @@ abstract class ApplicationJob<T : Any> {
     return cachedDataType
   }
 
-  fun processLater(data: T) {
+  fun processLater(data: T, scheduledAt: LocalDateTime? = null) {
     try {
       val dataType = getDataType()
       val jobType = this::class.java  // ← Pasar la clase del job
 
       logger.debug("Enqueueing job of type: ${dataType.simpleName}")
-      basicKoolQueueMessageProducer.send(data, jobType)
+      basicKoolQueueMessageProducer.send(data, jobType, scheduledAt)
     } catch (e: Exception) {
       logger.error("Failed to enqueue job", e)
       throw e
     }
   }
 
-  abstract fun process(data: T): Result<Boolean>
 
   internal fun processInternal(rawData: Any): Result<Boolean> {
     @Suppress("UNCHECKED_CAST")

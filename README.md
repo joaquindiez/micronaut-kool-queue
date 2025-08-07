@@ -79,7 +79,7 @@ Step 2. Add the dependency
 <dependency>
 	    <groupId>com.github.joaquindiez</groupId>
 	    <artifactId>micronaut-kool-queue</artifactId>
-	    <version>0.2.4-SNAPSHOT</version>
+	    <version>0.2.7-SNAPSHOT</version>
 	</dependency>
 ```
 
@@ -100,8 +100,12 @@ Add this to application.yaml
 
 micronaut:
     scheduler:
-    kool-queue:
-      max-concurrent-tasks: 2      
+        kool-queue:
+          enabled: true
+          max-concurrent-tasks: 3
+          default-interval: 30s
+          default-initial-delay: 10s
+          shutdown-timeout-seconds: 30     
 ```
 
 
@@ -117,11 +121,7 @@ class EmailNotificationJob : ApplicationJob<EmailData>() {
 
   private val logger = LoggerFactory.getLogger(javaClass)
 
-  override fun getType(): Class<EmailData> {
-    return EmailData::class.java
-  }
-
-  override fun process(data: Any): Result<Boolean> {
+  override fun process(data: EmailData): Result<Boolean> {
     val emailData = data as EmailData
     
     return try {
@@ -203,9 +203,7 @@ Jobs are automatically processed by the Kool Queue scheduler:
 @Singleton
 class DataProcessingJob : ApplicationJob<ProcessingRequest>() {
 
-  override fun getType(): Class<ProcessingRequest> = ProcessingRequest::class.java
-
-  override fun process(data: Any): Result<Boolean> {
+  override fun process(data: ProcessingRequest): Result<Boolean> {
     val request = data as ProcessingRequest
     
     return try {

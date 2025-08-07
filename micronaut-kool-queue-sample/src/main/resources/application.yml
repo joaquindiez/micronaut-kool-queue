@@ -4,8 +4,8 @@ micronaut:
   scheduler:
     kool-queue:
       max-concurrent-tasks: 2
+      shutdown-timeout-seconds: 30
       enable-management-endpoints: true
-
 
 endpoints:
   all:

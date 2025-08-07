@@ -28,6 +28,7 @@ class TestJobs : ApplicationJob<String>() {
 
   override fun process(data: String): Result<Boolean> {
     logger.info("Procesando Test Jobs -> $data")
+    Thread.sleep(10_000)
     return Result.success(true)
   }
 

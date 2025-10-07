@@ -30,34 +30,17 @@ import java.util.*
 @Singleton
 class JobsRepository (private val jdbcTemplate: JdbcOperations) {
 
-  fun update(jobId: Long, newStatus: TaskStatus): Int {
+
+  fun update(jobId: Long,  finishAt: LocalDateTime): Int {
     val sql = """
             UPDATE kool_queue_jobs
-            SET status = ?
+            SET finished_at = ?
             WHERE id = ?
         """.trimIndent()
-
     // Execute the update and return the number of affected rows
     return jdbcTemplate.prepareStatement(sql) { statement ->
-      statement.setString(1, newStatus.name)
+      statement.setObject(1, Timestamp.valueOf(finishAt))
       statement.setLong(2, jobId)
-
-      // Execute the update
-      statement.executeUpdate()
-    }
-  }
-
-  fun update(jobId: Long, newStatus: TaskStatus, finishAt: LocalDateTime): Int {
-    val sql = """
-            UPDATE kool_queue_jobs
-            SET status = ?, finished_at = ?
-            WHERE id = ?
-        """.trimIndent()
-    // Execute the update and return the number of affected rows
-    return jdbcTemplate.prepareStatement(sql) { statement ->
-      statement.setString(1, newStatus.name)
-      statement.setObject(2, Timestamp.valueOf(finishAt))
-      statement.setLong(3, jobId)
       // Execute the update
       statement.executeUpdate()
     }
@@ -68,7 +51,7 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
     val sql = """
             SELECT *
             FROM kool_queue_jobs
-            WHERE status = ?
+            WHERE 
               AND (scheduled_at IS NULL OR scheduled_at <= ?)
             FOR UPDATE SKIP LOCKED
         """.trimIndent()
@@ -163,28 +146,46 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
     }
   }
 
+  fun findById(id: Long): KoolQueueJobs? {
+    val sql = """
+            SELECT *
+            FROM kool_queue_jobs
+            WHERE id = ?
+        """.trimIndent()
+
+    return jdbcTemplate.prepareStatement(sql) { statement ->
+      statement.setLong(1, id)
+      val resultSet = statement.executeQuery()
+      if (resultSet.next() ){
+        resultToJob (resultSet)
+      }else{
+        null
+      }
+
+    }
+  }
+
 
 
   fun save(job: KoolQueueJobs): Long? {
     val sql = """
             INSERT INTO kool_queue_jobs (
-                queue_name, job_id, class_name, priority, metadata, status,
+                queue_name, class_name, priority, arguments,active_job_id,
                 scheduled_at, finished_at, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """.trimIndent()
 
     return jdbcTemplate.execute { connection: Connection ->
       connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS).use { statement ->
         statement.setString(1, job.queueName)
-        statement.setObject(2, job.jobId)
-        statement.setString(3, job.className)
-        statement.setInt(4, job.priority)
-        statement.setString(5, job.metadata)
-        statement.setString(6, job.status.name)
-        statement.setObject(7, job.scheduledAt)
-        statement.setObject(8, job.finishedAt)
-        statement.setObject(9, job.createdAt)
-        statement.setObject(10, job.updatedAt)
+        statement.setString(2, job.className)
+        statement.setInt(3, job.priority)
+        statement.setString(4, job.arguments)
+        statement.setObject(5, job.activeJobId)
+        statement.setObject(6, job.scheduledAt?.let { Timestamp.from(it) })
+        statement.setObject(7, job.finishedAt?.let { Timestamp.from(it) })
+        statement.setObject(8, job.createdAt)
+        statement.setObject(9, job.updatedAt)
 
         statement.executeUpdate()
 
@@ -203,19 +204,18 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
 
   private fun resultToJob(resultSet: ResultSet): KoolQueueJobs {
     val finishedAt: Timestamp? = resultSet.getTimestamp("finished_at")
-    val scheduledAt: Timestamp?   = resultSet.getTimestamp("scheduled_at")
+    val scheduledAt: Timestamp? = resultSet.getTimestamp("scheduled_at")
     val job = KoolQueueJobs(
       id = resultSet.getLong("id"),
       className = resultSet.getString("class_name"),
-      status = TaskStatus.valueOf(resultSet.getString("status")),
-      jobId = UUID.fromString(resultSet.getString("job_id")),
-      metadata = resultSet.getString("metadata"),
+      arguments = resultSet.getString("arguments"),
       priority = resultSet.getInt("priority"),
       queueName = resultSet.getString("queue_name"),
       createdAt = resultSet.getTimestamp("created_at").toLocalDateTime(),
       updatedAt = resultSet.getTimestamp("updated_at").toLocalDateTime(),
-      finishedAt = finishedAt?.toLocalDateTime(),
-      scheduledAt = scheduledAt?.toLocalDateTime()
+      finishedAt = finishedAt?.toInstant(),
+      scheduledAt = scheduledAt?.toInstant(),
+      activeJobId = UUID.fromString(resultSet.getString("active_job_id"))
       // Mapear otros campos según sea necesario
     )
     return job

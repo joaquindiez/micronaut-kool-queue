@@ -3,7 +3,7 @@ micronaut:
     name: kool-queue-app-test
   scheduler:
     kool-queue:
-      max-concurrent-tasks: 2
+      max-concurrent-tasks: 4
       shutdown-timeout-seconds: 30
       enable-management-endpoints: true
 

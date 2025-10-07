@@ -15,21 +15,38 @@
  */
 package com.joaquindiez.koolQueue.services
 
+import com.joaquindiez.koolQueue.domain.KoolQueueFailedExecutions
 import io.micronaut.transaction.annotation.Transactional
 import jakarta.inject.Singleton
-import com.joaquindiez.koolQueue.domain.TaskStatus
 import com.joaquindiez.koolQueue.domain.KoolQueueJobs
+import com.joaquindiez.koolQueue.domain.KoolQueueReadyExecution
+import com.joaquindiez.koolQueue.domain.KoolQueueScheduledExecution
+import com.joaquindiez.koolQueue.repository.FailedExecutionsRepository
 import com.joaquindiez.koolQueue.repository.JobsRepository
+import com.joaquindiez.koolQueue.repository.KoolQueueClaimedExecutionsRepository
+import com.joaquindiez.koolQueue.repository.ReadyExecutionRepository
+import com.joaquindiez.koolQueue.repository.ScheduledExecutionRepository
 import org.slf4j.LoggerFactory
 
 import java.time.LocalDateTime
 
 @Singleton
 open class KoolQueueJobsService(
-  private val jobsRepository: JobsRepository) {
+  private val jobsRepository: JobsRepository,
+  private val readyExecutionRepository: ReadyExecutionRepository,
+  private val failedExecutionsRepository: FailedExecutionsRepository,
+  private val readyExecutionService: KoolQueueReadyExecutionService,
+  private val claimedExecutionsRepository: KoolQueueClaimedExecutionsRepository,
+  private val scheduledExecutionRepository: ScheduledExecutionRepository,
+) {
   private val logger = LoggerFactory.getLogger(javaClass)
 
   private val limit = 5
+
+  @Transactional
+  open fun findById(id: Long): KoolQueueJobs? {
+    return this.jobsRepository.findById(id)
+  }
 
   @Transactional
   open fun findAllTasks(): List<KoolQueueJobs> {
@@ -47,50 +64,77 @@ open class KoolQueueJobsService(
     return this.jobsRepository.findInProgressTasks()
   }
 
-
-
   /**
    *
    * just for demo purpose
    */
   @Transactional
-  open fun addTask(task: KoolQueueJobs): KoolQueueJobs {
-    val id =  this.jobsRepository.save(task)
-    return task.copy(id = id)
+  open fun addJobReady(job: KoolQueueJobs): KoolQueueJobs {
+    val id = this.jobsRepository.save(job)
+    val newJob = job.copy(id = id)
+    val jobReadyForExecution = readyExecutionService.enqueueAsReady(newJob)
+    return newJob
   }
+
+
+  @Transactional
+  open fun enqueueAsScheduled(job: KoolQueueJobs): KoolQueueJobs {
+    val id = this.jobsRepository.save(job)
+    val newJob = job.copy(id = id)
+    val scheduledExecution = KoolQueueScheduledExecution.fromJob(newJob)
+    this.scheduledExecutionRepository.save(scheduledExecution)
+    return newJob
+  }
+
 
 
   @Transactional
   open fun finishSuccessTask(task: KoolQueueJobs): KoolQueueJobs {
-    this.jobsRepository.update(task.id!!, TaskStatus.DONE, LocalDateTime.now())
+    this.jobsRepository.update(task.id!!, LocalDateTime.now())
+    this.claimedExecutionsRepository.deleteByJobId(task.id)
     return task
   }
 
   @Transactional
-  open fun finishOnErrorTask(task: KoolQueueJobs): KoolQueueJobs {
-     this.jobsRepository.update(task.id!!, TaskStatus.ERROR, LocalDateTime.now())
+  open fun finishOnErrorTask(task: KoolQueueJobs, throwable: Throwable): KoolQueueJobs {
+    this.jobsRepository.update(task.id!!, LocalDateTime.now())
+    this.claimedExecutionsRepository.deleteByJobId(task.id)
+    this.failedExecutionsRepository.save(
+      KoolQueueFailedExecutions(jobId = task.id, error = "${throwable.message}"))
+
     return task
   }
 
 
   @Transactional
-  open fun findNextJobsPending(limit : Int = 1): List<KoolQueueJobs>  {
+  open fun findNextJobsPending(limit: Int = 1): List<KoolQueueJobs> {
 
     val taskList = this.jobsRepository.findNextJobsPending(limit = limit)
     logger.debug("Result find Task $taskList")
     for (task in taskList) {
       // Si se encuentra la tarea, se procesa y actualiza su estado
-      task.let {
-        it.status = TaskStatus.IN_PROGRESS
-        this.jobsRepository.update(task.id!!, task.status)
-      }
+      readyExecutionService.enqueueAsReady(task)
+    }
+    return taskList
+  }
+
+  @Transactional
+  open fun findNextScheduledJobsPending(limit: Int = 100): List<KoolQueueScheduledExecution> {
+
+    val taskList = this.scheduledExecutionRepository.findNextJobsPending(limit = limit)
+    logger.debug("Result find Task $taskList")
+    for (task in taskList) {
+      // Si se encuentra la tarea, se procesa y actualiza su estado
+      val job = this.jobsRepository.findById(task.jobId) ?: continue
+      readyExecutionService.enqueueAsReady(job)
+      this.scheduledExecutionRepository.deleteByJobId(task.jobId)
     }
     return taskList
   }
 
 
   @Transactional
-  open fun findAllJobsPending(): List<KoolQueueJobs>  {
+  open fun findAllJobsPending(): List<KoolQueueJobs> {
     val taskList = this.jobsRepository.findAllJobsPending()
     logger.debug("Result findAllJobsPending  $taskList")
     return taskList

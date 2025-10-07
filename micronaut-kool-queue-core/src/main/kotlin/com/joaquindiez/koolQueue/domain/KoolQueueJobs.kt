@@ -16,6 +16,7 @@
 package com.joaquindiez.koolQueue.domain
 
 import io.micronaut.serde.annotation.Serdeable
+import java.time.Instant
 
 import java.time.LocalDateTime
 import java.util.*
@@ -25,13 +26,13 @@ data class KoolQueueJobs(
 
   val id: Long? = null,
   val queueName: String = "default",
-  val jobId: UUID,
   val className: String,
+  val arguments: String,
   val priority: Int = 0,
-  val metadata: String,
-  var status: TaskStatus = TaskStatus.PENDING,
-  var scheduledAt: LocalDateTime? = null,
-  var finishedAt: LocalDateTime? = null,
+  val activeJobId: UUID,
+  var scheduledAt: Instant? = null,
+  var finishedAt: Instant? = null,
+  var concurrency_key: String? = null,
   var createdAt: LocalDateTime = LocalDateTime.now(),
   var updatedAt: LocalDateTime = LocalDateTime.now()
 )

@@ -16,13 +16,16 @@
 package com.joaquindiez.koolQueue.jobs
 
 import com.joaquindiez.koolQueue.core.KoolQueueTask
+import com.joaquindiez.koolQueue.domain.KoolQueueClaimedExecutions
 import com.joaquindiez.koolQueue.domain.KoolQueueJobs
+import com.joaquindiez.koolQueue.repository.KoolQueueClaimedExecutionsRepository
 import io.micronaut.context.BeanContext
 import io.micronaut.json.JsonMapper
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
 import jakarta.persistence.EntityManagerFactory
 import com.joaquindiez.koolQueue.services.KoolQueueJobsService
+import com.joaquindiez.koolQueue.services.KoolQueueReadyExecutionService
 import io.micronaut.context.ApplicationContext
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
@@ -31,6 +34,8 @@ import java.io.ByteArrayInputStream
 @Singleton
 class KoolQueueScheduledJob(
   private val taskService: KoolQueueJobsService,
+  private val readyExecutionService: KoolQueueReadyExecutionService,
+  private val claimedExecutionsRepository: KoolQueueClaimedExecutionsRepository,
   private val jsonMapper: JsonMapper,
   private val applicationContext: ApplicationContext  // ✅ Añadido para verificar shutdown
    ) {
@@ -40,8 +45,30 @@ class KoolQueueScheduledJob(
 
   private val logger = LoggerFactory.getLogger(javaClass)
 
+  @KoolQueueTask(name = "checkScheduledTasks", interval = "1s", initialDelay = "10s")
+  fun checkScheduledTasks(){
+
+    logger.debug("Check Scheduling tasks")
+    // ✅ VERIFICAR: ¿La aplicación se está cerrando?
+    if (!applicationContext.isRunning) {
+      logger.debug("Application is shutting down - skipping pending tasks check")
+      return
+    }
+
+    // ✅ VERIFICAR: ¿La base de datos está disponible?
+    if (!isDatabaseAvailable()) {
+      logger.debug("Database is not available - skipping pending tasks check")
+      return
+    }
+
+
+    this.taskService.findNextScheduledJobsPending(limit = 100).forEach {
+      logger.info("Enqueueing scheduled job taskId=${it.id}")
+    }
+  }
+
   //@Scheduled(fixedRate = "2s", fixedDelay = "5s")
-  @KoolQueueTask(name = "checkKoolTasksTasks", interval = "2s", initialDelay = "10s")
+  @KoolQueueTask(name = "checkReadyTasks", interval = "0.1s", initialDelay = "10s")
   fun checkPendingTasks() {
 
     // ✅ VERIFICAR: ¿La aplicación se está cerrando?
@@ -56,27 +83,39 @@ class KoolQueueScheduledJob(
       return
     }
 
-    val nextPendingTasks =  taskService.findNextJobsPending(limit = 1)
-    logger.debug("Check next Jobs to Run pending jobs to Run ${nextPendingTasks.size}")
+    //01. Get Jobs Ready to Execute
+    val readyExecuteJobList = readyExecutionService.pollJobsForExecution(limit = 1)
+    //val nextPendingTasks =  taskService.findNextJobsPending(limit = 1)
+    logger.debug("Check next Jobs to Run pending jobs to Run ${readyExecuteJobList.size}")
 
-    for (jobTask in nextPendingTasks) {
+    for (jobId in readyExecuteJobList) {
       // ✅ VERIFICAR: Estado antes de procesar cada job
       if (!applicationContext.isRunning || !isDatabaseAvailable()) {
         logger.debug("Application/Database shutting down - stopping job processing")
         return
       }
-      processJobTaskSafely(jobTask)
+
+      val job = taskService.findById(jobId)
+      if ( job != null ) {
+        //02. Insertar in claimed_executions y borrar de ready executions
+        claimedExecutionsRepository.save(KoolQueueClaimedExecutions(jobId = jobId, processId = 0))
+        readyExecutionService.removeFromReady(jobId)
+
+        processJobTaskSafely(job)
+      }else{
+        logger.warn("Job not found id=$jobId")
+      }
+
     }
   }
-
 
 
   private fun processJobTaskSafely(jobTask: KoolQueueJobs) {
     // Usar reflexión para obtener propiedades del jobTask
     val jobTaskClass = jobTask::class.java
     val classNameField = jobTaskClass.getDeclaredField("className").apply { isAccessible = true }
-    val jobIdField = jobTaskClass.getDeclaredField("jobId").apply { isAccessible = true }
-    val metadataField = jobTaskClass.getDeclaredField("metadata").apply { isAccessible = true }
+    val jobIdField = jobTaskClass.getDeclaredField("id").apply { isAccessible = true }
+    val metadataField = jobTaskClass.getDeclaredField("arguments").apply { isAccessible = true }
 
     val className = classNameField.get(jobTask) as String
     val jobId = jobIdField.get(jobTask)
@@ -107,7 +146,7 @@ class KoolQueueScheduledJob(
               logger.error("Job taskId=$jobId className=$className finished onError")
 
               safeUpdateJobStatus(jobTask, jobId.toString(), "failure") {
-                taskService.finishOnErrorTask(jobTask)
+                taskService.finishOnErrorTask(jobTask, it)
               }
             }
           )
@@ -116,7 +155,7 @@ class KoolQueueScheduledJob(
           logger.error("Job taskId=$jobId className=$className UnExpected failure", ex)
 
           safeUpdateJobStatus(jobTask, jobId.toString(), "unexpected error") {
-            taskService.finishOnErrorTask(jobTask)
+            taskService.finishOnErrorTask(jobTask, ex)
           }
         }
 
@@ -124,8 +163,9 @@ class KoolQueueScheduledJob(
         logger.error("Job className=$className not valid taskId=$jobId")
 
         safeUpdateJobStatus(jobTask, jobId.toString(), "invalid job class") {
-          taskService.finishOnErrorTask(jobTask)
+          taskService.finishOnErrorTask(jobTask, Error("Job className=$className not valid taskId=$jobId") )
         }
+
       }
 
     } catch (e: Exception) {
@@ -136,7 +176,7 @@ class KoolQueueScheduledJob(
       logger.error("Error processing job taskId=$jobId className=$className", e)
 
       safeUpdateJobStatus(jobTask, jobId.toString(), "processing error") {
-        taskService.finishOnErrorTask(jobTask)
+        taskService.finishOnErrorTask(jobTask, e)
       }
     }
   }

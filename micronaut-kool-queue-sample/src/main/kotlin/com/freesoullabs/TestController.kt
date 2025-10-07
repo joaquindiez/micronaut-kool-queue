@@ -32,6 +32,6 @@ class TestController( val testJobs: TestJobs) {
   @Get("/scheduled")
   fun addTestScheduled(){
 
-    testJobs.processLater("Hello Scheduled", scheduledAt = LocalDateTime.now().plusHours(1))
+    testJobs.processLater("Hello Scheduled", scheduledAt = LocalDateTime.now().plusMinutes(1))
   }
 }

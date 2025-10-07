@@ -15,6 +15,7 @@
  */
 package com.joaquindiez.koolQueue.core
 
+import java.time.Instant
 import kotlin.time.Duration
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.atomic.AtomicLong
@@ -24,7 +25,10 @@ data class RegisteredTask(
   val taskFunction: suspend () -> Unit,
   val interval: Duration,
   val initialDelay: Duration
-)
+){
+  var currentProcessId : Long = 0
+  var lastHeartbeat: Instant = Instant.now()
+}
 
 class TaskRegistration(
   val name: String,

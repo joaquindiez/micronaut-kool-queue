@@ -16,6 +16,8 @@
 package com.joaquindiez.koolQueue.core
 
 import com.joaquindiez.koolQueue.config.KoolQueueSchedulerConfig
+import com.joaquindiez.koolQueue.domain.KoolQueueProcesses
+import com.joaquindiez.koolQueue.repository.ProcessesRepository
 import io.micronaut.context.ApplicationContext
 import io.micronaut.context.annotation.Requires
 import io.micronaut.core.annotation.Order
@@ -38,6 +40,9 @@ import java.util.concurrent.atomic.AtomicInteger
 
 // Logging
 import org.slf4j.LoggerFactory
+import java.net.InetAddress
+import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.CancellationException
 
 // Time
@@ -48,7 +53,8 @@ import java.util.concurrent.CancellationException
 @Requires(property = "micronaut.scheduler.kool-queue.enabled", value = "true", defaultValue = "true")
 class KoolQueueScheduler(
   private val config: KoolQueueSchedulerConfig,
-  private val applicationContext: ApplicationContext
+  private val applicationContext: ApplicationContext,
+  private val processesRepository: ProcessesRepository
 ) {
 
   private val logger = LoggerFactory.getLogger(KoolQueueScheduler::class.java)
@@ -105,6 +111,11 @@ class KoolQueueScheduler(
 
   private fun startPeriodicExecution(task: RegisteredTask): ScheduledFuture<*> {
     val executor = Executors.newScheduledThreadPool(1) { r ->
+      task.currentProcessId = registerCurrentProcess(
+        kind = task.name,
+        name = "${task.name}-${InetAddress.getLocalHost().hostName}"
+      )
+      doHeartbeat( task)
       Thread(r, "kool-queue-scheduler-${task.name}")
     }
 
@@ -115,6 +126,7 @@ class KoolQueueScheduler(
 
   private fun executeTask(task: RegisteredTask) {
 
+    doHeartbeat( task)
     // ✅ VERIFICAR: Estado antes de ejecutar
     if (isShuttingDown || !applicationContext.isRunning) {
       logger.debug("Skipping task '${task.name}' - scheduler shutting down")
@@ -171,7 +183,7 @@ class KoolQueueScheduler(
 
         }
       } else {
-        logger.warn("Máximo de tareas concurrentes alcanzado - Saltando ejecución de '${task.name}'")
+        logger.debug("Máximo de tareas concurrentes alcanzado - Saltando ejecución de '${task.name}'")
       }
     }
   }
@@ -293,4 +305,29 @@ class KoolQueueScheduler(
       }
     }
   }
+
+  private fun registerCurrentProcess(kind: String, name: String): Long {
+    val process = KoolQueueProcesses(
+      kind = kind,
+      name = name,
+      pid = ProcessHandle.current().pid().toInt(),
+      hostname = InetAddress.getLocalHost().hostName,
+      lastHeartbeatAt = Instant.now()
+    )
+
+    val registered = processesRepository.registerProcess(process)
+    logger.info("Proceso registrado con ID: ${registered.id}")
+    return registered.id!!
+  }
+
+  private fun doHeartbeat(task : RegisteredTask) {
+    if ( task.lastHeartbeat.plusSeconds(10).isBefore(Instant.now()))  {
+      processesRepository.updateHeartbeat(task.currentProcessId)
+      task.lastHeartbeat = Instant.now()
+    }
+
+  }
+
+
+
 }

@@ -20,5 +20,6 @@ package com.joaquindiez.koolQueue.core
 annotation class KoolQueueTask(
   val name: String = "",
   val interval: String = "30s",
-  val initialDelay: String = "10s"
+  val initialDelay: String = "10s",
+  val maxConcurrency: Int = 1
 )

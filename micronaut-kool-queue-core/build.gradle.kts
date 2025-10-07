@@ -1,11 +1,11 @@
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.9.23"
-    id("org.jetbrains.kotlin.plugin.allopen") version "1.9.23"
-    id("org.jetbrains.kotlin.plugin.jpa") version "1.9.23"
-    id("com.google.devtools.ksp") version "1.9.23-1.0.19"
-    id("com.github.johnrengelman.shadow") version "8.1.1"
-    id("io.micronaut.library") version "4.4.0"
-    id("io.micronaut.aot") version "4.4.0"
+    id("org.jetbrains.kotlin.jvm") version "1.9.25"
+    id("org.jetbrains.kotlin.plugin.allopen") version "1.9.25"
+    id("org.jetbrains.kotlin.plugin.jpa") version "1.9.25"
+    id("com.google.devtools.ksp") version "1.9.25-1.0.20"
+    id("com.gradleup.shadow") version "8.3.7"
+    id("io.micronaut.library") version "4.5.4"
+    id("io.micronaut.aot") version "4.5.4"
     id("maven-publish")
 }
 

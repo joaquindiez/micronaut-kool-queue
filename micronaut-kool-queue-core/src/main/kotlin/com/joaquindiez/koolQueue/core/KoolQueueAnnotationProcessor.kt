@@ -83,7 +83,8 @@ class KoolQueueAnnotationProcessor(
                   }
                 },
                 interval = Duration.parse(annotation.interval),
-                initialDelay = Duration.parse(annotation.initialDelay)
+                initialDelay = Duration.parse(annotation.initialDelay),
+                maxConcurrency = annotation.maxConcurrency
               )
 
               logger.info("Auto-registrada tarea kool queue: $taskName")

@@ -16,6 +16,8 @@
 package com.joaquindiez.koolQueue.jobs
 
 import com.joaquindiez.koolQueue.core.KoolQueueTask
+
+import com.joaquindiez.koolQueue.core.RegisteredTask
 import com.joaquindiez.koolQueue.domain.KoolQueueClaimedExecutions
 import com.joaquindiez.koolQueue.domain.KoolQueueJobs
 import com.joaquindiez.koolQueue.repository.KoolQueueClaimedExecutionsRepository
@@ -37,7 +39,7 @@ class KoolQueueScheduledJob(
   private val readyExecutionService: KoolQueueReadyExecutionService,
   private val claimedExecutionsRepository: KoolQueueClaimedExecutionsRepository,
   private val jsonMapper: JsonMapper,
-  private val applicationContext: ApplicationContext  // ✅ Añadido para verificar shutdown
+  private val applicationContext: ApplicationContext,  // ✅ Añadido para verificar shutdown
    ) {
 
   @Inject
@@ -45,7 +47,7 @@ class KoolQueueScheduledJob(
 
   private val logger = LoggerFactory.getLogger(javaClass)
 
-  @KoolQueueTask(name = "checkScheduledTasks", interval = "1s", initialDelay = "10s")
+  @KoolQueueTask(name = "checkScheduledTasks", interval = "1s", initialDelay = "10s", maxConcurrency = 1)
   fun checkScheduledTasks(){
 
     logger.debug("Check Scheduling tasks")
@@ -61,14 +63,14 @@ class KoolQueueScheduledJob(
       return
     }
 
-
     this.taskService.findNextScheduledJobsPending(limit = 100).forEach {
       logger.info("Enqueueing scheduled job taskId=${it.id}")
     }
   }
 
   //@Scheduled(fixedRate = "2s", fixedDelay = "5s")
-  @KoolQueueTask(name = "checkReadyTasks", interval = "0.1s", initialDelay = "10s")
+  @KoolQueueTask(name = "checkReadyTasks", interval = "0.1s", initialDelay = "10s",  maxConcurrency = 5)
+  //context(task: RegisteredTask)
   fun checkPendingTasks() {
 
     // ✅ VERIFICAR: ¿La aplicación se está cerrando?

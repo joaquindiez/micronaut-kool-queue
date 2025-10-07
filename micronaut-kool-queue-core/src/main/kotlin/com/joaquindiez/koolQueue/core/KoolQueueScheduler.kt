@@ -89,7 +89,8 @@ class KoolQueueScheduler(
     name: String,
     task: suspend () -> Unit,
     interval: Duration = Duration.parse(config.defaultInterval),
-    initialDelay: Duration = Duration.parse(config.defaultInitialDelay)
+    initialDelay: Duration = Duration.parse(config.defaultInitialDelay),
+    maxConcurrency: Int
   ): TaskRegistration {
 
     if (isShuttingDown) {
@@ -97,14 +98,14 @@ class KoolQueueScheduler(
       throw IllegalStateException("Scheduler is shutting down")
     }
 
-    val registeredTask = RegisteredTask(name, task, interval, initialDelay)
+    val registeredTask = RegisteredTask(name, task, interval, initialDelay, maxConcurrency)
     registeredTasks[name] = registeredTask
 
     // Iniciar la ejecución programada
     val scheduledFuture = startPeriodicExecution(registeredTask)
     scheduledFutures[name] = scheduledFuture
 
-    logger.info("Tarea '$name' registrada - Intervalo: $interval, Delay inicial: $initialDelay")
+    logger.info("Tarea '$name' registrada - Intervalo: $interval, Delay inicial: $initialDelay, Max concurrency: $maxConcurrency")
 
     return TaskRegistration(name, scheduledFuture, this)
   }
@@ -134,56 +135,87 @@ class KoolQueueScheduler(
     }
 
     scope.launch {
+      // ✅ Intentar adquirir semáforo GLOBAL
       if (semaphore.tryAcquire()) {
-        val currentActive = activeTasks.incrementAndGet()
-        val executionId = executionStats.incrementTotal()
-
-        logger.debug("Ejecutando tarea '${task.name}' #$executionId ($currentActive/${config.maxConcurrentTasks} activas)")
-
         try {
-          // ✅ VERIFICAR: Estado durante ejecución
-          if (isShuttingDown || !applicationContext.isRunning) {
-            logger.debug("Task '${task.name}' cancelled - shutdown in progress")
-            return@launch
-          }
+          // ✅ Intentar adquirir semáforo de la TAREA
+          if (task.semaphore.tryAcquire()) {
+            try {
+              val currentActive = activeTasks.incrementAndGet()
+              val taskActive = task.activeExecutions.incrementAndGet()
+              val executionId = executionStats.incrementTotal()
 
-          task.taskFunction()
-          executionStats.incrementSuccess()
-          logger.debug("Tarea '${task.name}' #$executionId completada")
+              logger.debug(
+                "Ejecutando tarea '${task.name}' #$executionId " +
+                "(Global: $currentActive/${config.maxConcurrentTasks}, " +
+                "Task: $taskActive/${task.maxConcurrency})"
+              )
 
-        } catch (e: CancellationException) {
-          logger.warn("Tarea '${task.name}' #$executionId cancelada")
-          throw e
+              try {
+                // ✅ VERIFICAR: Estado durante ejecución
+                if (isShuttingDown || !applicationContext.isRunning) {
+                  logger.debug("Task '${task.name}' cancelled - shutdown in progress")
+                  return@launch
+                }
 
-        } catch (e: Exception) {
-          // ✅ DISTINGUIR: Errores reales vs errores de shutdown
-          when {
-            e.message?.contains("EntityManagerFactory is closed") == true -> {
-              logger.debug("Task '${task.name}' - EntityManagerFactory closed (shutdown)")
+                task.taskFunction()
+                executionStats.incrementSuccess()
+                logger.debug("Tarea '${task.name}' #$executionId completada")
+
+
+              } catch (e: CancellationException) {
+                logger.warn("Tarea '${task.name}' #$executionId cancelada")
+                throw e
+
+              } catch (e: Exception) {
+                // ✅ DISTINGUIR: Errores reales vs errores de shutdown
+                when {
+                  e.message?.contains("EntityManagerFactory is closed") == true -> {
+                    logger.debug("Task '${task.name}' - EntityManagerFactory closed (shutdown)")
+                  }
+                  e.message?.contains("Connection pool closed") == true -> {
+                    logger.debug("Task '${task.name}' - Connection pool closed (shutdown)")
+                  }
+                  e.message?.contains("HikariPool") == true && e.message?.contains("shutdown") == true -> {
+                    logger.debug("Task '${task.name}' - HikariPool shutdown")
+                  }
+                  isShuttingDown || !applicationContext.isRunning -> {
+                    logger.debug("Task '${task.name}' failed during shutdown: ${e.message}")
+                  }
+                  else -> {
+                    executionStats.incrementFailure()
+                    logger.error("Error en tarea '${task.name}' #$executionId: ${e.message}", e)
+                  }
+                }
+
+              } finally {
+                val remaining = activeTasks.decrementAndGet()
+                val taskRemaining = task.activeExecutions.decrementAndGet()
+                logger.debug(
+                  "Tarea '${task.name}' #$executionId finalizada " +
+                  "(Global: $remaining, Task: $taskRemaining)"
+                )
+              }
+
+            } finally {
+              // ✅ Liberar semáforo de la tarea
+              task.semaphore.release()
             }
-            e.message?.contains("Connection pool closed") == true -> {
-              logger.debug("Task '${task.name}' - Connection pool closed (shutdown)")
-            }
-            e.message?.contains("HikariPool") == true && e.message?.contains("shutdown") == true -> {
-              logger.debug("Task '${task.name}' - HikariPool shutdown")
-            }
-            isShuttingDown || !applicationContext.isRunning -> {
-              logger.debug("Task '${task.name}' failed during shutdown: ${e.message}")
-            }
-            else -> {
-              executionStats.incrementFailure()
-              logger.error("Error en tarea '${task.name}' #$executionId: ${e.message}", e)
-            }
+
+          } else {
+            logger.debug(
+              "Máximo de concurrencia de tarea '${task.name}' alcanzado " +
+              "(${task.activeExecutions.get()}/${task.maxConcurrency}) - Saltando ejecución"
+            )
           }
 
         } finally {
-          val remaining = activeTasks.decrementAndGet()
+          // ✅ Liberar semáforo global
           semaphore.release()
-          logger.debug("Tarea '${task.name}' #$executionId finalizada ($remaining activas restantes)")
-
         }
+
       } else {
-        logger.debug("Máximo de tareas concurrentes alcanzado - Saltando ejecución de '${task.name}'")
+        logger.debug("Máximo de tareas concurrentes globales alcanzado - Saltando ejecución de '${task.name}'")
       }
     }
   }

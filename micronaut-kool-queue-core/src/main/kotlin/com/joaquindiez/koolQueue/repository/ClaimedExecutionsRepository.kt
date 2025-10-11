@@ -16,6 +16,7 @@
 package com.joaquindiez.koolQueue.repository
 
 import com.joaquindiez.koolQueue.domain.KoolQueueClaimedExecutions
+import com.joaquindiez.koolQueue.domain.KoolQueueJobs
 import io.micronaut.data.jdbc.runtime.JdbcOperations
 import io.micronaut.transaction.annotation.Transactional
 import jakarta.inject.Singleton
@@ -76,6 +77,72 @@ open class KoolQueueClaimedExecutionsRepository(
       ps.setLong(1, jobId)
       ps.executeUpdate()
     }
+  }
+
+
+  /**
+   * Elimina por job_id
+   * Retorna el número de filas eliminadas
+   */
+  @Transactional
+  open fun findAll(): List<KoolQueueClaimedExecutions> {
+    val sql = "SELECT * FROM kool_queue_claimed_executions"
+
+    return jdbcTemplate.prepareStatement(sql) { ps ->
+      val resultSet = ps.executeQuery()
+      val jobList = mutableListOf<KoolQueueClaimedExecutions>()
+
+      while (resultSet.next()) {
+        // Map the result set to KoolQueueJobs
+        jobList.add(mapRow (resultSet))
+      }
+
+      jobList
+    }
+  }
+
+  /**
+   * Finds all jobs that are currently claimed (in progress)
+   * by joining with the jobs table
+   */
+  @Transactional
+  open fun findAllClaimedJobs(): List<KoolQueueJobs> {
+    val sql = """
+      SELECT j.*
+      FROM kool_queue_jobs j
+      INNER JOIN kool_queue_claimed_executions ce ON j.id = ce.job_id
+    """.trimIndent()
+
+    return jdbcTemplate.prepareStatement(sql) { ps ->
+      val resultSet = ps.executeQuery()
+      val jobList = mutableListOf<KoolQueueJobs>()
+
+      while (resultSet.next()) {
+        jobList.add(mapRowToJob(resultSet))
+      }
+
+      jobList
+    }
+  }
+
+  /**
+   * Maps a ResultSet row to a KoolQueueJobs object
+   */
+  private fun mapRowToJob(rs: ResultSet): KoolQueueJobs {
+    val finishedAt: Timestamp? = rs.getTimestamp("finished_at")
+    val scheduledAt: Timestamp? = rs.getTimestamp("scheduled_at")
+    return KoolQueueJobs(
+      id = rs.getLong("id"),
+      className = rs.getString("class_name"),
+      arguments = rs.getString("arguments"),
+      priority = rs.getInt("priority"),
+      queueName = rs.getString("queue_name"),
+      createdAt = rs.getTimestamp("created_at").toLocalDateTime(),
+      updatedAt = rs.getTimestamp("updated_at").toLocalDateTime(),
+      finishedAt = finishedAt?.toInstant(),
+      scheduledAt = scheduledAt?.toInstant(),
+      activeJobId = java.util.UUID.fromString(rs.getString("active_job_id"))
+    )
   }
 
 

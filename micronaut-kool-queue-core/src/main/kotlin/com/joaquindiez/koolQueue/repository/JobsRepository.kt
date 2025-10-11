@@ -73,59 +73,62 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
     }
   }
 
+  /*
+    fun findInProgressTasks(): List<KoolQueueJobs> {
+      val sql = """
+              SELECT *
+              FROM kool_queue_jobs
+              WHERE status = ?
+              FOR UPDATE SKIP LOCKED
+          """.trimIndent()
 
-  fun findInProgressTasks(): List<KoolQueueJobs> {
-    val sql = """
-            SELECT *
-            FROM kool_queue_jobs
-            WHERE status = ?
-            FOR UPDATE SKIP LOCKED
-        """.trimIndent()
+      return jdbcTemplate.prepareStatement(sql) { statement ->
 
-    return jdbcTemplate.prepareStatement(sql) { statement ->
+        statement.setString(1, TaskStatus.IN_PROGRESS.name)
 
-      statement.setString(1, TaskStatus.IN_PROGRESS.name)
+        val resultSet = statement.executeQuery()
+        val jobList = mutableListOf<KoolQueueJobs>()
 
-      val resultSet = statement.executeQuery()
-      val jobList = mutableListOf<KoolQueueJobs>()
+        while (resultSet.next()) {
+          // Map the result set to KoolQueueJobs
+          jobList.add(resultToJob (resultSet))
+        }
 
-      while (resultSet.next()) {
-        // Map the result set to KoolQueueJobs
-        jobList.add(resultToJob (resultSet))
+        jobList
       }
-
-      jobList
     }
-  }
 
-  fun findNextJobsPending(limit: Int = 1): List<KoolQueueJobs> {
-    val sql = """
-            SELECT *
-            FROM kool_queue_jobs
-            WHERE status = ?
-             AND (scheduled_at IS NULL OR scheduled_at <= ?)
-            FOR UPDATE SKIP LOCKED
-            LIMIT ?
-        """.trimIndent()
+    fun findNextJobsPending(limit: Int = 1): List<KoolQueueJobs> {
+      val sql = """
+              SELECT *
+              FROM kool_queue_jobs
+              WHERE status = ?
+               AND (scheduled_at IS NULL OR scheduled_at <= ?)
+              FOR UPDATE SKIP LOCKED
+              LIMIT ?
+          """.trimIndent()
 
-    return jdbcTemplate.prepareStatement(sql) { statement ->
-      statement.setString(1, TaskStatus.PENDING.name)
+      return jdbcTemplate.prepareStatement(sql) { statement ->
+        statement.setString(1, TaskStatus.PENDING.name)
 
-      val nowTimeStamp = Timestamp.valueOf(LocalDateTime.now())
-      statement.setTimestamp(2, nowTimeStamp)
-      statement.setInt(3, limit)
+        val nowTimeStamp = Timestamp.valueOf(LocalDateTime.now())
+        statement.setTimestamp(2, nowTimeStamp)
+        statement.setInt(3, limit)
 
-      val resultSet = statement.executeQuery()
-      val jobList = mutableListOf<KoolQueueJobs>()
+        val resultSet = statement.executeQuery()
+        val jobList = mutableListOf<KoolQueueJobs>()
 
-      while (resultSet.next()) {
-        // Map the result set to KoolQueueJobs
-        jobList.add(resultToJob (resultSet))
+        while (resultSet.next()) {
+          // Map the result set to KoolQueueJobs
+          jobList.add(resultToJob (resultSet))
+        }
+
+        jobList
       }
-
-      jobList
     }
-  }
+
+    */
+
 
   fun findAll(): List<KoolQueueJobs> {
     val sql = """
@@ -164,7 +167,6 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
 
     }
   }
-
 
 
   fun save(job: KoolQueueJobs): Long? {

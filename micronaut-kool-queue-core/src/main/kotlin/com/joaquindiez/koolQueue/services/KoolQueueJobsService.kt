@@ -52,17 +52,19 @@ open class KoolQueueJobsService(
   open fun findAllTasks(): List<KoolQueueJobs> {
     return this.jobsRepository.findAll()
   }
-
+/*
   @Transactional
   open fun findJobsPending(): List<KoolQueueJobs> {
     return this.jobsRepository.findNextJobsPending()
   }
 
-
+*/
   @Transactional
   open fun findInProgressTasks(): List<KoolQueueJobs> {
-    return this.jobsRepository.findInProgressTasks()
+    return this.claimedExecutionsRepository.findAllClaimedJobs()
   }
+
+
 
   /**
    *
@@ -105,7 +107,7 @@ open class KoolQueueJobsService(
     return task
   }
 
-
+/*
   @Transactional
   open fun findNextJobsPending(limit: Int = 1): List<KoolQueueJobs> {
 
@@ -117,7 +119,7 @@ open class KoolQueueJobsService(
     }
     return taskList
   }
-
+*/
   @Transactional
   open fun findNextScheduledJobsPending(limit: Int = 100): List<KoolQueueScheduledExecution> {
 

@@ -54,8 +54,11 @@ class KoolQueueSchedulerEndpoint(
     return taskService.findAllJobsPending();
   }
 
+
   private fun getInProgressTasks(): Any {
     return taskService.findInProgressTasks();
   }
+
+
 
 }

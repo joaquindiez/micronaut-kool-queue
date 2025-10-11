@@ -46,7 +46,7 @@ open class FailedExecutionsRepository(
   @Transactional
   open fun save(failedExecution: KoolQueueFailedExecutions): KoolQueueFailedExecutions {
     val sql = """
-            INSERT INTO kool_queue_failed_executions (job_id, errpr, created_at)
+            INSERT INTO kool_queue_failed_executions (job_id, error, created_at)
             VALUES (?, ?, ?)
             RETURNING id, job_id, errpr, created_at
         """.trimIndent()

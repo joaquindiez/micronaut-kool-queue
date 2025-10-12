@@ -48,7 +48,7 @@ open class FailedExecutionsRepository(
     val sql = """
             INSERT INTO kool_queue_failed_executions (job_id, error, created_at)
             VALUES (?, ?, ?)
-            RETURNING id, job_id, errpr, created_at
+            RETURNING id, job_id, error, created_at
         """.trimIndent()
 
     return jdbcTemplate.prepareStatement(sql) { ps ->

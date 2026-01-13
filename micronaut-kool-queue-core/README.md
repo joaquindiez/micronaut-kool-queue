@@ -63,7 +63,7 @@ Other specialized tables (for advanced features):
 _© 2025 — Kool Queue for Micronaut_
 
 
-## Resumens Scheduler
+## Resumenes Scheduler
 
 SCHEDULER (threads)  →  Crea jobs recurrentes
 ↓
@@ -74,3 +74,142 @@ DISPATCHER (1s)      →  Mueve scheduled → ready
 ready_executions
 ↓
 WORKER (0.1s)        →  Ejecuta jobs
+
+---
+
+## 🔧 Management Endpoints
+
+Kool Queue provides management endpoints for monitoring and administration of the queue scheduler.
+
+### Configuration
+
+To enable the management endpoints, add the following configuration to your `application.yml`:
+
+```yaml
+micronaut:
+  scheduler:
+    kool-queue:
+      enable-management-endpoints: true
+
+endpoints:
+  kool-queue-scheduler:
+    enabled: true
+    sensitive: false  # Set to true to require authentication
+```
+
+---
+
+### Endpoint: Scheduler Statistics
+
+Returns overall statistics about the KoolQueue scheduler.
+
+**Path:** `GET /kool-queue-scheduler`
+
+```bash
+curl -X GET http://localhost:8080/kool-queue-scheduler
+```
+
+**Response:**
+
+```json
+{
+  "activeTasks": 2,
+  "maxConcurrentTasks": 4,
+  "registeredTasks": ["TestJobs", "EmailJob", "ReportJob"],
+  "totalExecutions": 150,
+  "successfulExecutions": 145,
+  "failedExecutions": 5,
+  "successRate": 96.67
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `activeTasks` | Integer | Current number of tasks being executed |
+| `maxConcurrentTasks` | Integer | Maximum allowed concurrent tasks |
+| `registeredTasks` | List | Names of registered job classes |
+| `totalExecutions` | Long | Total executions since startup |
+| `successfulExecutions` | Long | Total successful executions |
+| `failedExecutions` | Long | Total failed executions |
+| `successRate` | Double | Success rate percentage (0-100) |
+
+---
+
+### Endpoint: Get Pending Tasks
+
+Returns a list of all jobs pending execution.
+
+**Path:** `GET /kool-queue-scheduler/tasks`
+
+```bash
+curl -X GET http://localhost:8080/kool-queue-scheduler/tasks
+```
+
+**Response:**
+
+```json
+[
+  {
+    "id": 1,
+    "queueName": "default",
+    "jobId": "550e8400-e29b-41d4-a716-446655440000",
+    "className": "com.example.TestJobs",
+    "priority": 0,
+    "status": "PENDING",
+    "scheduledAt": "2025-01-13T10:30:00",
+    "completedAt": null,
+    "payload": "{\"data\":\"Hello\"}"
+  }
+]
+```
+
+---
+
+### Endpoint: Get In-Progress Tasks
+
+Returns a list of jobs currently being executed.
+
+**Path:** `GET /kool-queue-scheduler/in-progress`
+
+```bash
+curl -X GET http://localhost:8080/kool-queue-scheduler/in-progress
+```
+
+**Response:**
+
+```json
+[
+  {
+    "id": 2,
+    "queueName": "default",
+    "jobId": "550e8400-e29b-41d4-a716-446655440001",
+    "className": "com.example.EmailJob",
+    "priority": 1,
+    "status": "IN_PROGRESS",
+    "scheduledAt": "2025-01-13T10:25:00",
+    "completedAt": null,
+    "payload": "{\"to\":\"user@example.com\"}"
+  }
+]
+```
+
+---
+
+### Endpoints Summary
+
+| Endpoint | Method | Path | Description |
+|----------|--------|------|-------------|
+| Scheduler Stats | GET | `/kool-queue-scheduler` | Returns scheduler statistics and metrics |
+| Pending Tasks | GET | `/kool-queue-scheduler/tasks` | Lists all pending jobs |
+| In-Progress Tasks | GET | `/kool-queue-scheduler/in-progress` | Lists currently executing jobs |
+
+---
+
+### Job Status Values
+
+| Status | Description |
+|--------|-------------|
+| `PENDING` | Job is queued and waiting for execution |
+| `IN_PROGRESS` | Job is currently being executed |
+| `DONE` | Job completed successfully |
+| `ERROR` | Job failed during execution |

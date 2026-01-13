@@ -15,6 +15,7 @@
  */
  package com.freesoullabs
 
+import com.joaquindiez.koolQueue.domain.JobReference
 import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.Get
 import java.time.LocalDateTime
@@ -24,14 +25,21 @@ import java.time.LocalDateTime
 class TestController( val testJobs: TestJobs) {
 
   @Get
-  fun addTest(){
+  fun addTest(): JobReference{
 
-    testJobs.processLater("Hello")
+    val jobRef = testJobs.processLater("Hello")
+    println("Job ID: ${jobRef.jobId}")
+    // Encolar y obtener referencia
+    return jobRef
+
   }
 
   @Get("/scheduled")
-  fun addTestScheduled(){
+  fun addTestScheduled(): JobReference{
 
-    testJobs.processLater("Hello Scheduled", scheduledAt = LocalDateTime.now().plusMinutes(1))
+    val jobRef = testJobs.processLater("Hello Scheduled", scheduledAt = LocalDateTime.now().plusMinutes(1))
+    println("Job ID: ${jobRef}")
+
+    return jobRef
   }
 }

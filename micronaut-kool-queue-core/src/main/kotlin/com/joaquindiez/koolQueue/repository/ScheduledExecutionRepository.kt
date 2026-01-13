@@ -76,7 +76,7 @@ open class ScheduledExecutionRepository(
    */
   fun findByJobId(jobId: Long): KoolQueueScheduledExecution? {
     val sql = """
-            SELECT id, job_id, queue_name, priority, created_at
+            SELECT id, job_id, queue_name, priority, scheduled_at, created_at
             FROM kool_queue_scheduled_executions
             WHERE job_id = ?
         """.trimIndent()
@@ -89,6 +89,19 @@ open class ScheduledExecutionRepository(
       }
     } catch (e: Exception) {
       null
+    }
+  }
+
+  /**
+   * Checks if a scheduled execution exists for the given job_id
+   */
+  fun existsByJobId(jobId: Long): Boolean {
+    val sql = "SELECT 1 FROM kool_queue_scheduled_executions WHERE job_id = ? LIMIT 1"
+
+    return jdbcTemplate.prepareStatement(sql) { ps ->
+      ps.setLong(1, jobId)
+      val rs = ps.executeQuery()
+      rs.next()
     }
   }
 

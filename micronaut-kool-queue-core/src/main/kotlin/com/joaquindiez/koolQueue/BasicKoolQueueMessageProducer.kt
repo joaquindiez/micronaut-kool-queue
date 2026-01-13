@@ -18,11 +18,11 @@ package com.joaquindiez.koolQueue
 import com.github.f4b6a3.uuid.UuidCreator
 import io.micronaut.json.JsonMapper
 import jakarta.inject.Singleton
+import com.joaquindiez.koolQueue.domain.JobReference
 import com.joaquindiez.koolQueue.domain.KoolQueueJobs
 import com.joaquindiez.koolQueue.services.KoolQueueJobsService
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.ZoneOffset
 
 @Singleton
 class BasicKoolQueueMessageProducer(
@@ -32,26 +32,34 @@ class BasicKoolQueueMessageProducer(
 
   private val logger = org.slf4j.LoggerFactory.getLogger(javaClass)
 
-  override fun send(msg: Any, className: Class<*>, scheduledAt: LocalDateTime?) {
+  override fun send(msg: Any, className: Class<*>, scheduledAt: LocalDateTime?): JobReference {
     val json = jsonMapper.writeValueAsString(msg)
 
-    val scheduledTime = scheduledAt?: LocalDateTime.now()
+    val scheduledTime = scheduledAt ?: LocalDateTime.now()
+    val scheduledInstant = scheduledTime.atZone(ZoneId.systemDefault()).toInstant()
     val uuidV7 = UuidCreator.getTimeOrderedEpoch()
+
     val task = KoolQueueJobs(
       className = className.canonicalName,
       arguments = json,
-      scheduledAt = scheduledTime.atZone(ZoneId.systemDefault()).toInstant(),
+      scheduledAt = scheduledInstant,
       activeJobId = uuidV7,
     )
 
-    //Insert in job and ready executions
+    // Insert in job and ready/scheduled executions
     if (scheduledAt == null) {
       val job = taskService.addJobReady(task)
       logger.info("Job enqueued: $job")
-    }else{
+    } else {
       val job = taskService.enqueueAsScheduled(task)
       logger.info("Job Scheduled: $job")
     }
 
+    // Return a reference to track the job
+    return JobReference(
+      jobId = uuidV7,
+      className = className.canonicalName,
+      scheduledAt = if (scheduledAt != null) scheduledInstant else null
+    )
   }
 }

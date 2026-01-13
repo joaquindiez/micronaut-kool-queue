@@ -15,8 +15,20 @@
  */
 package com.joaquindiez.koolQueue
 
+import com.joaquindiez.koolQueue.domain.JobReference
 import java.time.LocalDateTime
 
+/**
+ * Interface for producing messages to the Kool Queue.
+ */
 interface KoolQueueMessageProducer {
-  fun send(msg: Any, className: Class<*>,scheduledAt: LocalDateTime?)
+  /**
+   * Sends a message to the queue for processing.
+   *
+   * @param msg The message payload to be processed
+   * @param className The class that will process this message
+   * @param scheduledAt Optional time to schedule the job (null for immediate execution)
+   * @return JobReference containing the job ID for tracking
+   */
+  fun send(msg: Any, className: Class<*>, scheduledAt: LocalDateTime?): JobReference
 }

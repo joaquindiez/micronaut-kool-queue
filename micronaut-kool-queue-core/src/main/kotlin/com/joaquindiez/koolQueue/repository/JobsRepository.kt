@@ -182,12 +182,29 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
     return jdbcTemplate.prepareStatement(sql) { statement ->
       statement.setLong(1, id)
       val resultSet = statement.executeQuery()
-      if (resultSet.next() ){
-        resultToJob (resultSet)
-      }else{
+      if (resultSet.next()) {
+        resultToJob(resultSet)
+      } else {
         null
       }
+    }
+  }
 
+  fun findByActiveJobId(activeJobId: UUID): KoolQueueJobs? {
+    val sql = """
+            SELECT *
+            FROM kool_queue_jobs
+            WHERE active_job_id = ?
+        """.trimIndent()
+
+    return jdbcTemplate.prepareStatement(sql) { statement ->
+      statement.setObject(1, activeJobId)
+      val resultSet = statement.executeQuery()
+      if (resultSet.next()) {
+        resultToJob(resultSet)
+      } else {
+        null
+      }
     }
   }
 

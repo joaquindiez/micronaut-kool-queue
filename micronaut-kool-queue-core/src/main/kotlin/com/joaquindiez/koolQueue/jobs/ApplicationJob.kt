@@ -20,6 +20,7 @@ package com.joaquindiez.koolQueue.jobs
 
 
 import com.joaquindiez.koolQueue.BasicKoolQueueMessageProducer
+import com.joaquindiez.koolQueue.domain.JobReference
 import jakarta.inject.Inject
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
@@ -100,13 +101,29 @@ abstract class ApplicationJob<T : Any> {
     return cachedDataType
   }
 
-  fun processLater(data: T, scheduledAt: LocalDateTime? = null) {
+  /**
+   * Enqueues a job for later processing.
+   *
+   * @param data The payload to be processed by this job
+   * @param scheduledAt Optional time to schedule the job (null for immediate execution)
+   * @return JobReference containing the job ID for tracking status
+   *
+   * Example usage:
+   * ```kotlin
+   * val jobRef = myJob.processLater(payload)
+   * println("Job enqueued with ID: ${jobRef.jobId}")
+   *
+   * // Later, check the status
+   * val status = jobTracker.getStatus(jobRef.jobId)
+   * ```
+   */
+  fun processLater(data: T, scheduledAt: LocalDateTime? = null): JobReference {
     try {
       val dataType = getDataType()
       val jobType = this::class.java  // ← Pasar la clase del job
 
       logger.debug("Enqueueing job of type: ${dataType.simpleName}")
-      basicKoolQueueMessageProducer.send(data, jobType, scheduledAt)
+      return basicKoolQueueMessageProducer.send(data, jobType, scheduledAt)
     } catch (e: Exception) {
       logger.error("Failed to enqueue job", e)
       throw e

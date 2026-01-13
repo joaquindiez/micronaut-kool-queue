@@ -18,6 +18,7 @@ package com.joaquindiez.koolQueue.controller
 import com.joaquindiez.koolQueue.core.KoolQueueScheduler
 import com.joaquindiez.koolQueue.services.KoolQueueJobsService
 import io.micronaut.context.annotation.Requires
+import io.micronaut.http.HttpRequest
 import io.micronaut.management.endpoint.annotation.Endpoint
 import io.micronaut.management.endpoint.annotation.Read
 import io.micronaut.management.endpoint.annotation.Selector
@@ -33,32 +34,42 @@ class KoolQueueSchedulerEndpoint(
   private val taskService: KoolQueueJobsService
 ) {
 
+  companion object {
+    private const val DEFAULT_PAGE = 0
+    private const val DEFAULT_SIZE = 20
+    private const val MAX_SIZE = 100
+  }
+
   @Read
   fun getStats(): Map<String, Any> {
     return scheduler.getStats()
   }
 
-  // GET /kool-queue-scheduler/tasks
+  // GET /kool-queue-scheduler/tasks?page=0&size=20
+  // GET /kool-queue-scheduler/in-progress?page=0&size=20
   @Read
-  fun getTasks(@Selector selector: String?): Any {
+  fun getTasks(@Selector selector: String?, request: HttpRequest<*>): Any {
     return when (selector) {
-      "tasks" -> getTaskList()
-      "in-progress" -> getInProgressTasks()
-      //"registered" -> getRegisteredTasks()
-      else -> mapOf("error" to "Invalid selector. Use: tasks, active, or registered")
+      "tasks" -> getTaskList(request)
+      "in-progress" -> getInProgressTasks(request)
+      else -> mapOf("error" to "Invalid selector. Use: tasks or in-progress")
     }
   }
 
 
-  private fun getTaskList(): Any {
-    return taskService.findAllJobsPending();
+  private fun getTaskList(request: HttpRequest<*>): Any {
+    val page = request.parameters.get("page")?.toIntOrNull()?.coerceAtLeast(0) ?: DEFAULT_PAGE
+    val size = request.parameters.get("size")?.toIntOrNull()?.coerceIn(1, MAX_SIZE) ?: DEFAULT_SIZE
+
+    return taskService.findAllJobsPendingPaged(page, size)
   }
 
 
-  private fun getInProgressTasks(): Any {
-    return taskService.findInProgressTasks();
+  private fun getInProgressTasks(request: HttpRequest<*>): Any {
+    val page = request.parameters.get("page")?.toIntOrNull()?.coerceAtLeast(0) ?: DEFAULT_PAGE
+    val size = request.parameters.get("size")?.toIntOrNull()?.coerceIn(1, MAX_SIZE) ?: DEFAULT_SIZE
+
+    return taskService.findInProgressTasksPaged(page, size)
   }
-
-
 
 }

@@ -126,6 +126,55 @@ open class KoolQueueClaimedExecutionsRepository(
   }
 
   /**
+   * Finds all jobs that are currently claimed (in progress) with pagination
+   */
+  @Transactional
+  open fun findAllClaimedJobs(page: Int = 0, size: Int = 20): List<KoolQueueJobs> {
+    val offset = page * size
+    val sql = """
+      SELECT j.*
+      FROM kool_queue_jobs j
+      INNER JOIN kool_queue_claimed_executions ce ON j.id = ce.job_id
+      ORDER BY ce.created_at DESC
+      LIMIT ? OFFSET ?
+    """.trimIndent()
+
+    return jdbcTemplate.prepareStatement(sql) { ps ->
+      ps.setInt(1, size)
+      ps.setInt(2, offset)
+
+      val resultSet = ps.executeQuery()
+      val jobList = mutableListOf<KoolQueueJobs>()
+
+      while (resultSet.next()) {
+        jobList.add(mapRowToJob(resultSet))
+      }
+
+      jobList
+    }
+  }
+
+  /**
+   * Counts all jobs that are currently claimed (in progress)
+   */
+  @Transactional
+  open fun countAllClaimedJobs(): Long {
+    val sql = """
+      SELECT COUNT(*)
+      FROM kool_queue_claimed_executions
+    """.trimIndent()
+
+    return jdbcTemplate.prepareStatement(sql) { ps ->
+      val resultSet = ps.executeQuery()
+      if (resultSet.next()) {
+        resultSet.getLong(1)
+      } else {
+        0L
+      }
+    }
+  }
+
+  /**
    * Maps a ResultSet row to a KoolQueueJobs object
    */
   private fun mapRowToJob(rs: ResultSet): KoolQueueJobs {

@@ -64,6 +64,25 @@ open class KoolQueueJobsService(
     return this.claimedExecutionsRepository.findAllClaimedJobs()
   }
 
+  @Transactional
+  open fun findInProgressTasksPaged(page: Int = 0, size: Int = 20): Map<String, Any> {
+    val taskList = this.claimedExecutionsRepository.findAllClaimedJobs(page, size)
+    val totalElements = this.claimedExecutionsRepository.countAllClaimedJobs()
+    val totalPages = if (size > 0) ((totalElements + size - 1) / size).toInt() else 0
+
+    logger.debug("Result findInProgressTasksPaged page=$page size=$size total=$totalElements")
+
+    return mapOf(
+      "content" to taskList,
+      "page" to page,
+      "size" to size,
+      "totalElements" to totalElements,
+      "totalPages" to totalPages,
+      "hasNext" to (page < totalPages - 1),
+      "hasPrevious" to (page > 0)
+    )
+  }
+
 
 
   /**
@@ -140,6 +159,30 @@ open class KoolQueueJobsService(
     val taskList = this.jobsRepository.findAllJobsPending()
     logger.debug("Result findAllJobsPending  $taskList")
     return taskList
+  }
+
+  @Transactional
+  open fun findAllJobsPendingPaged(page: Int = 0, size: Int = 20): Map<String, Any> {
+    val taskList = this.jobsRepository.findAllJobsPending(page, size)
+    val totalElements = this.jobsRepository.countAllJobsPending()
+    val totalPages = if (size > 0) ((totalElements + size - 1) / size).toInt() else 0
+
+    logger.debug("Result findAllJobsPendingPaged page=$page size=$size total=$totalElements")
+
+    return mapOf(
+      "content" to taskList,
+      "page" to page,
+      "size" to size,
+      "totalElements" to totalElements,
+      "totalPages" to totalPages,
+      "hasNext" to (page < totalPages - 1),
+      "hasPrevious" to (page > 0)
+    )
+  }
+
+  @Transactional
+  open fun countAllJobsPending(): Long {
+    return this.jobsRepository.countAllJobsPending()
   }
 
 

@@ -135,73 +135,128 @@ curl -X GET http://localhost:8080/kool-queue-scheduler
 
 ---
 
-### Endpoint: Get Pending Tasks
+### Endpoint: Get Pending Tasks (Paginated)
 
-Returns a list of all jobs pending execution.
+Returns a paginated list of jobs pending execution.
 
 **Path:** `GET /kool-queue-scheduler/tasks`
 
+**Query Parameters:**
+
+| Parameter | Type | Default | Max | Description |
+|-----------|------|---------|-----|-------------|
+| `page` | Integer | 0 | - | Page number (0-indexed) |
+| `size` | Integer | 20 | 100 | Number of items per page |
+
+**Examples:**
+
 ```bash
+# Get first page with default size (20 items)
 curl -X GET http://localhost:8080/kool-queue-scheduler/tasks
+
+# Get second page with 50 items per page
+curl -X GET "http://localhost:8080/kool-queue-scheduler/tasks?page=1&size=50"
+
+# Get first 10 items
+curl -X GET "http://localhost:8080/kool-queue-scheduler/tasks?page=0&size=10"
 ```
 
 **Response:**
 
 ```json
-[
-  {
-    "id": 1,
-    "queueName": "default",
-    "jobId": "550e8400-e29b-41d4-a716-446655440000",
-    "className": "com.example.TestJobs",
-    "priority": 0,
-    "status": "PENDING",
-    "scheduledAt": "2025-01-13T10:30:00",
-    "completedAt": null,
-    "payload": "{\"data\":\"Hello\"}"
-  }
-]
+{
+  "content": [
+    {
+      "id": 1,
+      "queueName": "default",
+      "activeJobId": "550e8400-e29b-41d4-a716-446655440000",
+      "className": "com.example.TestJobs",
+      "priority": 0,
+      "scheduledAt": "2025-01-13T10:30:00",
+      "finishedAt": null,
+      "arguments": "{\"data\":\"Hello\"}"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 150,
+  "totalPages": 8,
+  "hasNext": true,
+  "hasPrevious": false
+}
 ```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `content` | Array | List of jobs in the current page |
+| `page` | Integer | Current page number (0-indexed) |
+| `size` | Integer | Number of items per page |
+| `totalElements` | Long | Total number of pending jobs |
+| `totalPages` | Integer | Total number of pages |
+| `hasNext` | Boolean | Whether there is a next page |
+| `hasPrevious` | Boolean | Whether there is a previous page |
 
 ---
 
-### Endpoint: Get In-Progress Tasks
+### Endpoint: Get In-Progress Tasks (Paginated)
 
-Returns a list of jobs currently being executed.
+Returns a paginated list of jobs currently being executed.
 
 **Path:** `GET /kool-queue-scheduler/in-progress`
 
+**Query Parameters:**
+
+| Parameter | Type | Default | Max | Description |
+|-----------|------|---------|-----|-------------|
+| `page` | Integer | 0 | - | Page number (0-indexed) |
+| `size` | Integer | 20 | 100 | Number of items per page |
+
+**Examples:**
+
 ```bash
+# Get first page with default size (20 items)
 curl -X GET http://localhost:8080/kool-queue-scheduler/in-progress
+
+# Get second page with 50 items per page
+curl -X GET "http://localhost:8080/kool-queue-scheduler/in-progress?page=1&size=50"
 ```
 
 **Response:**
 
 ```json
-[
-  {
-    "id": 2,
-    "queueName": "default",
-    "jobId": "550e8400-e29b-41d4-a716-446655440001",
-    "className": "com.example.EmailJob",
-    "priority": 1,
-    "status": "IN_PROGRESS",
-    "scheduledAt": "2025-01-13T10:25:00",
-    "completedAt": null,
-    "payload": "{\"to\":\"user@example.com\"}"
-  }
-]
+{
+  "content": [
+    {
+      "id": 2,
+      "queueName": "default",
+      "activeJobId": "550e8400-e29b-41d4-a716-446655440001",
+      "className": "com.example.EmailJob",
+      "priority": 1,
+      "scheduledAt": "2025-01-13T10:25:00",
+      "finishedAt": null,
+      "arguments": "{\"to\":\"user@example.com\"}"
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 5,
+  "totalPages": 1,
+  "hasNext": false,
+  "hasPrevious": false
+}
 ```
 
 ---
 
 ### Endpoints Summary
 
-| Endpoint | Method | Path | Description |
-|----------|--------|------|-------------|
-| Scheduler Stats | GET | `/kool-queue-scheduler` | Returns scheduler statistics and metrics |
-| Pending Tasks | GET | `/kool-queue-scheduler/tasks` | Lists all pending jobs |
-| In-Progress Tasks | GET | `/kool-queue-scheduler/in-progress` | Lists currently executing jobs |
+| Endpoint | Method | Path | Pagination | Description |
+|----------|--------|------|------------|-------------|
+| Scheduler Stats | GET | `/kool-queue-scheduler` | No | Returns scheduler statistics and metrics |
+| Pending Tasks | GET | `/kool-queue-scheduler/tasks` | Yes | Lists pending jobs (supports `page` and `size` params) |
+| In-Progress Tasks | GET | `/kool-queue-scheduler/in-progress` | Yes | Lists executing jobs (supports `page` and `size` params) |
 
 ---
 

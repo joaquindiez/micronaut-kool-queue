@@ -1,8 +1,8 @@
 # Micronaut-Kool-Queue: DB-based queuing backend for Micronaut
 
-Kool Queue  is a DB-based queuing backend for Micronaut Framework, designed with simplicity and performance in mind.
+Kool Queue is a DB-based queuing backend for Micronaut Framework, designed with simplicity and performance in mind.
 
-Kool Queue can be used with SQL databases such as PostgreSQL, and it leverages the FOR UPDATE SKIP LOCKED clause, if available, to avoid blocking and waiting on locks when polling jobs.
+Kool Queue uses PostgreSQL and leverages the FOR UPDATE SKIP LOCKED clause to avoid blocking and waiting on locks when polling jobs.
 
 
 # Installation
@@ -87,25 +87,95 @@ Step 2. Add the dependency
 
 # High performance requirements
 
-Kool Queue was designed for the highest throughput when used with MySQL 8+ or PostgreSQL 9.5+, as they support FOR UPDATE SKIP LOCKED.
+Kool Queue was designed for the highest throughput when used with PostgreSQL 9.5+, as it supports FOR UPDATE SKIP LOCKED.
 You can use it with older versions, but in that case, you might run into lock waits if you run multiple workers for the same queue.
 
 
 # Configuration
 
+## Database Setup
 
-Add this to application.yaml
+Kool Queue requires a configured datasource with JPA/Hibernate. The library uses database tables to store and manage job queues.
 
+### Required Dependencies
+
+Add these dependencies to your project:
+
+**Gradle (Groovy)**
+```groovy
+dependencies {
+    implementation 'io.micronaut.data:micronaut-data-hibernate-jpa'
+    implementation 'io.micronaut.sql:micronaut-jdbc-hikari'
+    runtimeOnly 'org.postgresql:postgresql'
+}
 ```
 
+**Gradle (Kotlin DSL)**
+```kotlin
+dependencies {
+    implementation("io.micronaut.data:micronaut-data-hibernate-jpa")
+    implementation("io.micronaut.sql:micronaut-jdbc-hikari")
+    runtimeOnly("org.postgresql:postgresql")
+}
+```
+
+**Maven**
+```xml
+<dependencies>
+    <dependency>
+        <groupId>io.micronaut.data</groupId>
+        <artifactId>micronaut-data-hibernate-jpa</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>io.micronaut.sql</groupId>
+        <artifactId>micronaut-jdbc-hikari</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.postgresql</groupId>
+        <artifactId>postgresql</artifactId>
+        <scope>runtime</scope>
+    </dependency>
+</dependencies>
+```
+
+### Datasource Configuration
+
+Add the datasource configuration to your `application.yml`:
+
+```yaml
+datasources:
+  default:
+    url: jdbc:postgresql://localhost:5432/your_database
+    username: your_username
+    password: your_password
+    driver-class-name: org.postgresql.Driver
+    db-type: postgres
+    dialect: POSTGRES
+
+jpa:
+  default:
+    entity-scan:
+      packages:
+        - com.yourcompany.domain             # Your application entities
+    properties:
+      hibernate:
+        hbm2ddl:
+          auto: update  # Creates tables automatically
+```
+    
+## Scheduler Configuration
+
+Add the Kool Queue scheduler settings to your `application.yml`:
+
+```yaml
 micronaut:
-    scheduler:
-        kool-queue:
-          enabled: true
-          max-concurrent-tasks: 3
-          default-interval: 30s
-          default-initial-delay: 10s
-          shutdown-timeout-seconds: 30     
+  scheduler:
+    kool-queue:
+      enabled: true
+      max-concurrent-tasks: 3
+      default-interval: 30s
+      default-initial-delay: 10s
+      shutdown-timeout-seconds: 30
 ```
 
 

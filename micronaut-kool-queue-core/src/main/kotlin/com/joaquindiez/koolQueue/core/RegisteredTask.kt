@@ -32,7 +32,7 @@ data class RegisteredTask(
   var currentProcessId : Long = 0
   var lastHeartbeat: Instant = Instant.now()
 
-  // Semáforo individual para esta tarea
+  // Individual semaphore for this task
   val semaphore = Semaphore(maxConcurrency)
   val activeExecutions = AtomicInteger(0)
 }

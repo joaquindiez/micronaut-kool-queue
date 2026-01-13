@@ -29,27 +29,27 @@ data class KoolQueueReadyExecution(
   val id: Long? = null,
 
   /**
-   * FK a kool_queue_jobs
-   * UNIQUE para evitar duplicados
+   * FK to kool_queue_jobs
+   * UNIQUE to avoid duplicates
    */
   @Column(name = "job_id", nullable = false, unique = true)
   val jobId: Long,
 
   /**
-   * Nombre de la queue ('default', 'mailers', 'reports', etc.)
+   * Queue name ('default', 'mailers', 'reports', etc.)
    */
   @Column(name = "queue_name", nullable = false, length = 128)
   val queueName: String,
 
   /**
-   * Prioridad del job
-   * 0 = mayor prioridad, números mayores = menor prioridad
+   * Job priority
+   * 0 = highest priority, higher numbers = lower priority
    */
   @Column(name = "priority", nullable = false)
   val priority: Int = 0,
 
   /**
-   * Timestamp de creación
+   * Creation timestamp
    */
   @Column(name = "created_at", nullable = false, updatable = false)
   val createdAt: Instant = Instant.now()
@@ -57,7 +57,7 @@ data class KoolQueueReadyExecution(
 
   companion object {
     /**
-     * Crea una instancia desde un KoolQueueJob
+     * Creates an instance from a KoolQueueJob
      */
     fun fromJob(job: KoolQueueJobs): KoolQueueReadyExecution {
       return KoolQueueReadyExecution(

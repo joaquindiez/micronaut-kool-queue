@@ -31,7 +31,7 @@ open class ScheduledExecutionRepository(
 ) {
 
   /**
-   * RowMapper para convertir ResultSet a KoolQueueReadyExecution
+   * RowMapper to convert ResultSet to KoolQueueScheduledExecution
    */
   private fun mapRow(rs: ResultSet): KoolQueueScheduledExecution {
     return KoolQueueScheduledExecution(
@@ -45,7 +45,7 @@ open class ScheduledExecutionRepository(
   }
 
   /**
-   * Inserta un nuevo ready execution
+   * Inserts a new scheduled execution
    */
   @Transactional
   open fun save(readyExecution: KoolQueueScheduledExecution): KoolQueueScheduledExecution {
@@ -72,7 +72,7 @@ open class ScheduledExecutionRepository(
   }
 
   /**
-   * Busca por job_id
+   * Finds by job_id
    */
   fun findByJobId(jobId: Long): KoolQueueScheduledExecution? {
     val sql = """
@@ -137,8 +137,8 @@ open class ScheduledExecutionRepository(
 
 
   /**
-   * Elimina por job_id
-   * Retorna el número de filas eliminadas
+   * Deletes by job_id
+   * Returns the number of deleted rows
    */
   @Transactional
   open fun deleteByJobId(jobId: Long): Int {

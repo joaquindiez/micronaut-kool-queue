@@ -29,7 +29,7 @@ open class KoolQueueClaimedExecutionsRepository(
   private val jdbcTemplate: JdbcOperations
 ) {
   /**
-   * RowMapper para convertir ResultSet a KoolQueueReadyExecution
+   * RowMapper to convert ResultSet to KoolQueueClaimedExecutions
    */
   private fun mapRow(rs: ResultSet): KoolQueueClaimedExecutions {
     return KoolQueueClaimedExecutions(
@@ -41,7 +41,7 @@ open class KoolQueueClaimedExecutionsRepository(
   }
 
   /**
-   * Inserta un nuevo ready execution
+   * Inserts a new claimed execution
    */
   @Transactional
   open fun save(claimedExecution: KoolQueueClaimedExecutions): KoolQueueClaimedExecutions {
@@ -66,8 +66,8 @@ open class KoolQueueClaimedExecutionsRepository(
   }
 
   /**
-   * Elimina por job_id
-   * Retorna el número de filas eliminadas
+   * Deletes by job_id
+   * Returns the number of deleted rows
    */
   @Transactional
   open fun deleteByJobId(jobId: Long): Int {
@@ -94,8 +94,8 @@ open class KoolQueueClaimedExecutionsRepository(
 
 
   /**
-   * Elimina por job_id
-   * Retorna el número de filas eliminadas
+   * Deletes by job_id
+   * Returns the number of deleted rows
    */
   @Transactional
   open fun findAll(): List<KoolQueueClaimedExecutions> {

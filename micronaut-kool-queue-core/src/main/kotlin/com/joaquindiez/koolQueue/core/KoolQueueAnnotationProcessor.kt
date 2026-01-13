@@ -57,7 +57,7 @@ class KoolQueueAnnotationProcessor(
                 "${beanDefinition.beanType.simpleName}.${method.name}"
               }
 
-              // Verificar si es suspend function
+              // Check if it's a suspend function
               val isSuspend = method.kotlinFunction?.isSuspend == true
 
               scheduler.registerTask(
@@ -65,20 +65,20 @@ class KoolQueueAnnotationProcessor(
                 task = {
                   try {
                     if (isSuspend) {
-                      // Para funciones suspend, necesitamos reflection específica
+                      // For suspend functions, we need specific reflection
                       val result = method.invoke(bean)
                       if (result is kotlin.coroutines.Continuation<*>) {
-                        // Es una función suspend
+                        // It's a suspend function
                         suspendCoroutine<Unit> { cont: kotlin.coroutines.Continuation<Unit> ->
                           method.invoke(bean, cont)
                         }
                       }
                     } else {
-                      // Función normal
+                      // Normal function
                       method.invoke(bean)
                     }
                   } catch (e: Exception) {
-                    logger.error("Error ejecutando tarea anotada $taskName", e)
+                    logger.error("Error executing annotated task $taskName", e)
                     throw e
                   }
                 },
@@ -87,10 +87,10 @@ class KoolQueueAnnotationProcessor(
                 maxConcurrency = annotation.maxConcurrency
               )
 
-              logger.info("Auto-registrada tarea kool queue: $taskName")
+              logger.info("Auto-registered kool queue task: $taskName")
             }
         } catch (e: Exception) {
-          logger.debug("Error procesando bean ${beanDefinition.beanType.simpleName}", e)
+          logger.debug("Error processing bean ${beanDefinition.beanType.simpleName}", e)
         }
       }
   }

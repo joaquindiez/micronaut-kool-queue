@@ -29,7 +29,7 @@ open class FailedExecutionsRepository(
   private val jdbcTemplate: JdbcOperations
 ) {
   /**
-   * RowMapper para convertir ResultSet a KoolQueueReadyExecution
+   * RowMapper to convert ResultSet to KoolQueueFailedExecutions
    */
   private fun mapRow(rs: ResultSet): KoolQueueFailedExecutions {
     return KoolQueueFailedExecutions(
@@ -41,7 +41,7 @@ open class FailedExecutionsRepository(
   }
 
   /**
-   * Inserta un nuevo ready execution
+   * Inserts a new failed execution
    */
   @Transactional
   open fun save(failedExecution: KoolQueueFailedExecutions): KoolQueueFailedExecutions {
@@ -66,8 +66,8 @@ open class FailedExecutionsRepository(
   }
 
   /**
-   * Elimina por job_id
-   * Retorna el número de filas eliminadas
+   * Deletes by job_id
+   * Returns the number of deleted rows
    */
   @Transactional
   open fun deleteByJobId(jobId: Long): Int {

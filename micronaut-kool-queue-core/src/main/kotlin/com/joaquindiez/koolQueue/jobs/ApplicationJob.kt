@@ -34,7 +34,7 @@ abstract class ApplicationJob<T : Any> {
   @Inject
   private lateinit var basicKoolQueueMessageProducer: BasicKoolQueueMessageProducer
 
-  // ✅ Se inicializa después de la inyección de dependencias
+  // ✅ Initialized after dependency injection
   private lateinit var cachedDataType: Class<T>
 
 

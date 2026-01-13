@@ -258,7 +258,7 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
       finishedAt = finishedAt?.toInstant(),
       scheduledAt = scheduledAt?.toInstant(),
       activeJobId = UUID.fromString(resultSet.getString("active_job_id"))
-      // Mapear otros campos según sea necesario
+      // Map other fields as needed
     )
     return job
   }

@@ -63,17 +63,17 @@ Other specialized tables (for advanced features):
 _© 2025 — Kool Queue for Micronaut_
 
 
-## Resumenes Scheduler
+## Scheduler Overview
 
-SCHEDULER (threads)  →  Crea jobs recurrentes
+SCHEDULER (threads)  →  Creates recurring jobs
 ↓
 ready_executions
 ↓
-DISPATCHER (1s)      →  Mueve scheduled → ready
+DISPATCHER (1s)      →  Moves scheduled → ready
 ↓
 ready_executions
 ↓
-WORKER (0.1s)        →  Ejecuta jobs
+WORKER (0.1s)        →  Executes jobs
 
 ---
 

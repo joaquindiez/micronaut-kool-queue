@@ -30,7 +30,7 @@ Step 2. Add the dependency
 
 ```
 dependencies {
-	        implementation 'com.github.joaquindiez:micronaut-kool-queue:0.2.4-SNAPSHOT'
+	        implementation 'com.github.joaquindiez:micronaut-kool-queue:0.3.0-SNAPSHOT'
 	}
 
 ```
@@ -55,7 +55,7 @@ Step 2. Add the dependency
 
 ```
 dependencies {
-	        implementation("com.github.joaquindiez:micronaut-kool-queue:0.2.4-SNAPSHOT")
+	        implementation("com.github.joaquindiez:micronaut-kool-queue:0.3.0-SNAPSHOT")
 	}
 
 ```
@@ -79,7 +79,7 @@ Step 2. Add the dependency
 <dependency>
 	    <groupId>com.github.joaquindiez</groupId>
 	    <artifactId>micronaut-kool-queue</artifactId>
-	    <version>0.2.7-SNAPSHOT</version>
+	    <version>0.3.0-SNAPSHOT</version>
 	</dependency>
 ```
 
@@ -87,9 +87,9 @@ Step 2. Add the dependency
 
 # High performance requirements
 
-Koll Queue was designed for the highest throughput when used with MySQL 8+ or PostgreSQL 9.5+, as they support FOR UPDATE SKIP LOCKED.
+Kool Queue was designed for the highest throughput when used with MySQL 8+ or PostgreSQL 9.5+, as they support FOR UPDATE SKIP LOCKED.
 You can use it with older versions, but in that case, you might run into lock waits if you run multiple workers for the same queue.
-You can also use it with SQLite on smaller applications.
+
 
 # Configuration
 
@@ -158,7 +158,8 @@ class NotificationController(private val emailJob: EmailNotificationJob) {
   @Post("/send-email")
   fun sendEmail(@Body emailData: EmailData): HttpResponse<String> {
     // Queue the job for background processing
-    emailJob.processLater(emailData)
+    val jobRef =  emailJob.processLater(emailData)
+    println("Job ID: ${jobRef.jobId}")
     
     return HttpResponse.ok("Email queued for sending")
   }

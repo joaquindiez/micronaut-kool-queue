@@ -27,7 +27,7 @@ open class KoolQueueReadyExecutionService(
 ) {
 
   /**
-   * Encola un job como ready (listo para ejecutar)
+   * Enqueues a job as ready (ready to execute)
    */
   @Transactional
   open fun enqueueAsReady(job: KoolQueueJobs): KoolQueueReadyExecution {
@@ -36,7 +36,7 @@ open class KoolQueueReadyExecutionService(
   }
 
   /**
-   * Mueve un job a ready (usado por Dispatcher)
+   * Moves a job to ready (used by Dispatcher)
    */
   @Transactional
   open fun moveToReady(jobId: Long, queueName: String, priority: Int): KoolQueueReadyExecution {
@@ -49,7 +49,7 @@ open class KoolQueueReadyExecutionService(
   }
 
   /**
-   * Elimina un job de ready (cuando un worker lo reclama)
+   * Removes a job from ready (when a worker claims it)
    */
   @Transactional
   open fun removeFromReady(jobId: Long): Boolean {
@@ -58,8 +58,8 @@ open class KoolQueueReadyExecutionService(
   }
 
   /**
-   * Obtiene jobs listos para procesar (ALL queues)
-   * Usa FOR UPDATE SKIP LOCKED para evitar conflictos
+   * Gets jobs ready for processing (ALL queues)
+   * Uses FOR UPDATE SKIP LOCKED to avoid conflicts
    */
   @Transactional
   open fun pollJobsForExecution(limit: Int = 10): List<Long> {
@@ -67,7 +67,7 @@ open class KoolQueueReadyExecutionService(
   }
 
   /**
-   * Obtiene jobs de una queue específica
+   * Gets jobs from a specific queue
    */
   @Transactional
   open fun pollJobsForExecutionByQueue(queueName: String, limit: Int = 10): List<Long> {
@@ -75,7 +75,7 @@ open class KoolQueueReadyExecutionService(
   }
 
   /**
-   * Obtiene jobs de múltiples queues en orden de prioridad
+   * Gets jobs from multiple queues in priority order
    */
   @Transactional
   open fun pollJobsForExecutionByQueues(queueNames: List<String>, limit: Int = 10): List<Long> {
@@ -83,7 +83,7 @@ open class KoolQueueReadyExecutionService(
   }
 
   /**
-   * Obtiene estadísticas de la tabla ready
+   * Gets statistics from the ready table
    */
   fun getStats(): ReadyExecutionStats {
     val total = readyExecutionRepository.count()
@@ -93,7 +93,7 @@ open class KoolQueueReadyExecutionService(
   }
 
   /**
-   * Obtiene conteo por queue
+   * Gets count by queue
    */
   fun countByQueue(queueName: String): Long {
     return readyExecutionRepository.countByQueueName(queueName)
@@ -101,7 +101,7 @@ open class KoolQueueReadyExecutionService(
 }
 
 /**
- * Estadísticas de ready executions
+ * Statistics for ready executions
  */
 data class ReadyExecutionStats(
   val totalReady: Long

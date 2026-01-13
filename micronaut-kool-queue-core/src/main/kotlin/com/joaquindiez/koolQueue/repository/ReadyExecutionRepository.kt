@@ -29,7 +29,7 @@ open class ReadyExecutionRepository(
 ) {
 
   /**
-   * RowMapper para convertir ResultSet a KoolQueueReadyExecution
+   * RowMapper to convert ResultSet to KoolQueueReadyExecution
    */
   private fun mapRow(rs: ResultSet): KoolQueueReadyExecution {
     return KoolQueueReadyExecution(
@@ -42,7 +42,7 @@ open class ReadyExecutionRepository(
   }
 
   /**
-   * Inserta un nuevo ready execution
+   * Inserts a new ready execution
    */
   @Transactional
   open fun save(readyExecution: KoolQueueReadyExecution): KoolQueueReadyExecution {
@@ -68,7 +68,7 @@ open class ReadyExecutionRepository(
   }
 
   /**
-   * Busca por job_id
+   * Finds by job_id
    */
   fun findByJobId(jobId: Long): KoolQueueReadyExecution? {
     val sql = """
@@ -102,8 +102,8 @@ open class ReadyExecutionRepository(
   }
 
   /**
-   * Elimina por job_id
-   * Retorna el número de filas eliminadas
+   * Deletes by job_id
+   * Returns the number of deleted rows
    */
   @Transactional
   open fun deleteByJobId(jobId: Long): Int {
@@ -116,7 +116,7 @@ open class ReadyExecutionRepository(
   }
 
   /**
-   * Cuenta jobs en una queue específica
+   * Counts jobs in a specific queue
    */
   fun countByQueueName(queueName: String): Long {
     val sql = """
@@ -133,7 +133,7 @@ open class ReadyExecutionRepository(
   }
 
   /**
-   * Cuenta total de jobs ready
+   * Counts total ready jobs
    */
   fun count(): Long {
     val sql = "SELECT COUNT(*) FROM kool_queue_ready_executions"
@@ -145,7 +145,7 @@ open class ReadyExecutionRepository(
   }
 
   /**
-   * Lista jobs de una queue específica, ordenados por prioridad
+   * Lists jobs from a specific queue, ordered by priority
    */
   fun findByQueueNameOrderedByPriority(queueName: String): List<KoolQueueReadyExecution> {
     val sql = """
@@ -169,7 +169,7 @@ open class ReadyExecutionRepository(
   }
 
   /**
-   * Lista TODOS los jobs ready, ordenados por prioridad
+   * Lists ALL ready jobs, ordered by priority
    */
   fun findAllOrderedByPriority(): List<KoolQueueReadyExecution> {
     val sql = """
@@ -191,11 +191,11 @@ open class ReadyExecutionRepository(
   }
 
   /**
-   * CRÍTICO: Polling con FOR UPDATE SKIP LOCKED (ALL queues)
+   * CRITICAL: Polling with FOR UPDATE SKIP LOCKED (ALL queues)
    *
-   * Este query es el que usan los workers para reclamar jobs.
-   * FOR UPDATE SKIP LOCKED permite que múltiples workers consulten
-   * simultáneamente sin bloquearse entre sí.
+   * This query is used by workers to claim jobs.
+   * FOR UPDATE SKIP LOCKED allows multiple workers to query
+   * simultaneously without blocking each other.
    */
   @Transactional
   open fun pollJobsForUpdate(limit: Int): List<Long> {
@@ -221,9 +221,9 @@ open class ReadyExecutionRepository(
   }
 
   /**
-   * CRÍTICO: Polling con FOR UPDATE SKIP LOCKED (BY QUEUE)
+   * CRITICAL: Polling with FOR UPDATE SKIP LOCKED (BY QUEUE)
    *
-   * Versión que filtra por queue_name específica
+   * Version that filters by specific queue_name
    */
   @Transactional
   open fun pollJobsForUpdateByQueue(queueName: String, limit: Int): List<Long> {
@@ -251,19 +251,19 @@ open class ReadyExecutionRepository(
   }
 
   /**
-   * Polling para múltiples queues en orden de prioridad
-   * Por ejemplo: ['critical', 'default', 'low']
+   * Polling for multiple queues in priority order
+   * For example: ['critical', 'default', 'low']
    *
-   * Los jobs se retornan en orden:
-   * 1. Primero todos de 'critical'
-   * 2. Luego todos de 'default'
-   * 3. Finalmente todos de 'low'
+   * Jobs are returned in order:
+   * 1. First all from 'critical'
+   * 2. Then all from 'default'
+   * 3. Finally all from 'low'
    */
   @Transactional
   open fun pollJobsForUpdateByQueues(queueNames: List<String>, limit: Int): List<Long> {
     if (queueNames.isEmpty()) return emptyList()
 
-    // Crear placeholders para IN clause
+    // Create placeholders for IN clause
     val placeholders = queueNames.joinToString(",") { "?" }
 
     val sql = """
@@ -308,7 +308,7 @@ open class ReadyExecutionRepository(
   }
 
   /**
-   * Elimina todos los ready executions (útil para testing)
+   * Deletes all ready executions (useful for testing)
    */
   @Transactional
   open fun deleteAll(): Int {

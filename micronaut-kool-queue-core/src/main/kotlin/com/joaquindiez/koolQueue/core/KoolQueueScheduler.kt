@@ -69,21 +69,21 @@ class KoolQueueScheduler(
   private val activeTasks = AtomicInteger(0)
   private val executionStats = ExecutionStats()
 
-  // Registro de tareas registradas por la aplicación
+  // Registry of tasks registered by the application
   private val registeredTasks = mutableMapOf<String, RegisteredTask>()
   private val scheduledFutures = mutableMapOf<String, ScheduledFuture<*>>()
 
-  // ✅ Flag para indicar shutdown interno
+  // ✅ Flag to indicate internal shutdown
   @Volatile
   private var isShuttingDown = false
 
   @PostConstruct
   fun initialize() {
-    logger.info("KoolQueueScheduler inicializado - Max concurrent: ${config.maxConcurrentTasks}")
+    logger.info("KoolQueueScheduler initialized - Max concurrent: ${config.maxConcurrentTasks}")
   }
 
   /**
-   * Registra una tarea para ser ejecutada periódicamente
+   * Registers a task to be executed periodically
    */
   fun registerTask(
     name: String,
@@ -101,11 +101,11 @@ class KoolQueueScheduler(
     val registeredTask = RegisteredTask(name, task, interval, initialDelay, maxConcurrency)
     registeredTasks[name] = registeredTask
 
-    // Iniciar la ejecución programada
+    // Start scheduled execution
     val scheduledFuture = startPeriodicExecution(registeredTask)
     scheduledFutures[name] = scheduledFuture
 
-    logger.info("Tarea '$name' registrada - Intervalo: $interval, Delay inicial: $initialDelay, Max concurrency: $maxConcurrency")
+    logger.info("Task '$name' registered - Interval: $interval, Initial delay: $initialDelay, Max concurrency: $maxConcurrency")
 
     return TaskRegistration(name, scheduledFuture, this)
   }
@@ -128,17 +128,17 @@ class KoolQueueScheduler(
   private fun executeTask(task: RegisteredTask) {
 
     doHeartbeat( task)
-    // ✅ VERIFICAR: Estado antes de ejecutar
+    // ✅ CHECK: State before executing
     if (isShuttingDown || !applicationContext.isRunning) {
       logger.debug("Skipping task '${task.name}' - scheduler shutting down")
       return
     }
 
     scope.launch {
-      // ✅ Intentar adquirir semáforo GLOBAL
+      // ✅ Try to acquire GLOBAL semaphore
       if (semaphore.tryAcquire()) {
         try {
-          // ✅ Intentar adquirir semáforo de la TAREA
+          // ✅ Try to acquire TASK semaphore
           if (task.semaphore.tryAcquire()) {
             try {
               val currentActive = activeTasks.incrementAndGet()
@@ -146,13 +146,13 @@ class KoolQueueScheduler(
               val executionId = executionStats.incrementTotal()
 
               logger.debug(
-                "Ejecutando tarea '${task.name}' #$executionId " +
+                "Executing task '${task.name}' #$executionId " +
                 "(Global: $currentActive/${config.maxConcurrentTasks}, " +
                 "Task: $taskActive/${task.maxConcurrency})"
               )
 
               try {
-                // ✅ VERIFICAR: Estado durante ejecución
+                // ✅ CHECK: State during execution
                 if (isShuttingDown || !applicationContext.isRunning) {
                   logger.debug("Task '${task.name}' cancelled - shutdown in progress")
                   return@launch
@@ -160,15 +160,15 @@ class KoolQueueScheduler(
 
                 task.taskFunction()
                 executionStats.incrementSuccess()
-                logger.debug("Tarea '${task.name}' #$executionId completada")
+                logger.debug("Task '${task.name}' #$executionId completed")
 
 
               } catch (e: CancellationException) {
-                logger.warn("Tarea '${task.name}' #$executionId cancelada")
+                logger.warn("Task '${task.name}' #$executionId cancelled")
                 throw e
 
               } catch (e: Exception) {
-                // ✅ DISTINGUIR: Errores reales vs errores de shutdown
+                // ✅ DISTINGUISH: Real errors vs shutdown errors
                 when {
                   e.message?.contains("EntityManagerFactory is closed") == true -> {
                     logger.debug("Task '${task.name}' - EntityManagerFactory closed (shutdown)")
@@ -184,7 +184,7 @@ class KoolQueueScheduler(
                   }
                   else -> {
                     executionStats.incrementFailure()
-                    logger.error("Error en tarea '${task.name}' #$executionId: ${e.message}", e)
+                    logger.error("Error in task '${task.name}' #$executionId: ${e.message}", e)
                   }
                 }
 
@@ -192,30 +192,30 @@ class KoolQueueScheduler(
                 val remaining = activeTasks.decrementAndGet()
                 val taskRemaining = task.activeExecutions.decrementAndGet()
                 logger.debug(
-                  "Tarea '${task.name}' #$executionId finalizada " +
+                  "Task '${task.name}' #$executionId finished " +
                   "(Global: $remaining, Task: $taskRemaining)"
                 )
               }
 
             } finally {
-              // ✅ Liberar semáforo de la tarea
+              // ✅ Release task semaphore
               task.semaphore.release()
             }
 
           } else {
             logger.debug(
-              "Máximo de concurrencia de tarea '${task.name}' alcanzado " +
-              "(${task.activeExecutions.get()}/${task.maxConcurrency}) - Saltando ejecución"
+              "Maximum task concurrency '${task.name}' reached " +
+              "(${task.activeExecutions.get()}/${task.maxConcurrency}) - Skipping execution"
             )
           }
 
         } finally {
-          // ✅ Liberar semáforo global
+          // ✅ Release global semaphore
           semaphore.release()
         }
 
       } else {
-        logger.debug("Máximo de tareas concurrentes globales alcanzado - Saltando ejecución de '${task.name}'")
+        logger.debug("Maximum global concurrent tasks reached - Skipping execution of '${task.name}'")
       }
     }
   }
@@ -265,16 +265,16 @@ class KoolQueueScheduler(
       val oldMax = config.maxConcurrentTasks
       config.maxConcurrentTasks = newMax
 
-      // Crear nuevo semáforo con el nuevo límite
+      // Create new semaphore with the new limit
       val newSemaphore = Semaphore(newMax)
 
-      // Si aumentamos el límite, liberar permisos adicionales
+      // If we increase the limit, release additional permits
       if (newMax > oldMax) {
         val additionalPermits = newMax - oldMax
         newSemaphore.release(additionalPermits)
       }
 
-      logger.info("Límite de tareas concurrentes actualizado: $oldMax -> $newMax")
+      logger.info("Concurrent tasks limit updated: $oldMax -> $newMax")
     }
   }
 
@@ -290,12 +290,12 @@ class KoolQueueScheduler(
 
   @PreDestroy
   fun shutdown() {
-    logger.info("Iniciando shutdown del KoolQueueScheduler...")
+    logger.info("Starting KoolQueueScheduler shutdown...")
 
-    // ✅ MARCAR: Shutdown en progreso ANTES de cancelar tareas
+    // ✅ MARK: Shutdown in progress BEFORE cancelling tasks
     isShuttingDown = true
 
-    // Cancelar todos los ScheduledFuture
+    // Cancel all ScheduledFutures
     scheduledFutures.values.forEach { future ->
       try {
         future.cancel(false)
@@ -306,34 +306,34 @@ class KoolQueueScheduler(
 
     runBlocking {
       try {
-        // Dar tiempo a que las tareas actuales vean el flag
+        // Give time for current tasks to see the flag
         delay(100.milliseconds)
 
-        // Cancelar el scope
+        // Cancel the scope
         scope.cancel()
 
-        // Esperar a que terminen las tareas con timeout más corto
+        // Wait for tasks to finish with shorter timeout
         val shutdownSuccessful = withTimeoutOrNull(config.shutdownTimeoutSeconds.seconds) {
           while (activeTasks.get() > 0) {
             delay(100.milliseconds)
-            logger.debug("Esperando ${activeTasks.get()} tareas activas...")
+            logger.debug("Waiting for ${activeTasks.get()} active tasks...")
           }
           scope.coroutineContext[Job]?.join()
           true
         } ?: false
 
         if (shutdownSuccessful) {
-          logger.info("KoolQueueScheduler cerrado correctamente")
+          logger.info("KoolQueueScheduler closed successfully")
         } else {
-          logger.warn("KoolQueueScheduler shutdown timeout - ${activeTasks.get()} tareas pueden seguir corriendo")
+          logger.warn("KoolQueueScheduler shutdown timeout - ${activeTasks.get()} tasks may still be running")
         }
 
         val finalStats = getStats()
-        logger.info("Estadísticas finales del scheduler: $finalStats")
+        logger.info("Final scheduler statistics: $finalStats")
 
       } catch (e: Exception) {
-        // Durante shutdown, muchos errores son normales
-        logger.debug("Error durante shutdown (puede ser normal): ${e.message}")
+        // During shutdown, many errors are normal
+        logger.debug("Error during shutdown (may be normal): ${e.message}")
       }
     }
   }

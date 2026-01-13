@@ -21,7 +21,7 @@ import jakarta.inject.Singleton
 
 
 /**
- * Servicio para inicialización al arrancar la aplicación
+ * Service for initialization at application startup
  */
 @Singleton
 class KoolQueueInitializer(
@@ -39,19 +39,19 @@ class KoolQueueInitializer(
   fun init() {
     if (!schemaService.tablesExist()) {
 
-      logger.info("📦 Borrando version anterior Kool Queue...")
+      logger.info("📦 Deleting previous Kool Queue version...")
       schemaService.dropAllTables()
-      logger.info("📦 Inicializando Kool Queue...")
+      logger.info("📦 Initializing Kool Queue...")
       schemaService.createAllTables()
 
-      // Mostrar estadísticas
+      // Show statistics
       val stats = schemaService.getTableStats()
-      logger.info("📊 Estadísticas de tablas:")
+      logger.info("📊 Table statistics:")
       stats.forEach { (table, count) ->
-        logger.info("   - $table: $count registros")
+        logger.info("   - $table: $count records")
       }
     } else {
-      logger.info("✅ Kool Queue ya está inicializado")
+      logger.info("✅ Kool Queue is already initialized")
     }
   }
 }

@@ -39,7 +39,7 @@ class KoolQueueScheduledJob(
   private val readyExecutionService: KoolQueueReadyExecutionService,
   private val claimedExecutionsRepository: KoolQueueClaimedExecutionsRepository,
   private val jsonMapper: JsonMapper,
-  private val applicationContext: ApplicationContext,  // ✅ Añadido para verificar shutdown
+  private val applicationContext: ApplicationContext,  // ✅ Added to verify shutdown
    ) {
 
   @Inject
@@ -51,13 +51,13 @@ class KoolQueueScheduledJob(
   fun checkScheduledTasks(){
 
     logger.debug("Check Scheduling tasks")
-    // ✅ VERIFICAR: ¿La aplicación se está cerrando?
+    // ✅ CHECK: Is the application shutting down?
     if (!applicationContext.isRunning) {
       logger.debug("Application is shutting down - skipping pending tasks check")
       return
     }
 
-    // ✅ VERIFICAR: ¿La base de datos está disponible?
+    // ✅ CHECK: Is the database available?
     if (!isDatabaseAvailable()) {
       logger.debug("Database is not available - skipping pending tasks check")
       return
@@ -73,13 +73,13 @@ class KoolQueueScheduledJob(
   //context(task: RegisteredTask)
   fun checkPendingTasks() {
 
-    // ✅ VERIFICAR: ¿La aplicación se está cerrando?
+    // ✅ CHECK: Is the application shutting down?
     if (!applicationContext.isRunning) {
       logger.debug("Application is shutting down - skipping pending tasks check")
       return
     }
 
-    // ✅ VERIFICAR: ¿La base de datos está disponible?
+    // ✅ CHECK: Is the database available?
     if (!isDatabaseAvailable()) {
       logger.debug("Database is not available - skipping pending tasks check")
       return
@@ -91,7 +91,7 @@ class KoolQueueScheduledJob(
     logger.debug("Check next Jobs to Run pending jobs to Run ${readyExecuteJobList.size}")
 
     for (jobId in readyExecuteJobList) {
-      // ✅ VERIFICAR: Estado antes de procesar cada job
+      // ✅ CHECK: State before processing each job
       if (!applicationContext.isRunning || !isDatabaseAvailable()) {
         logger.debug("Application/Database shutting down - stopping job processing")
         return
@@ -99,7 +99,7 @@ class KoolQueueScheduledJob(
 
       val job = taskService.findById(jobId)
       if ( job != null ) {
-        //02. Insertar in claimed_executions y borrar de ready executions
+        //02. Insert in claimed_executions and delete from ready executions
         claimedExecutionsRepository.save(KoolQueueClaimedExecutions(jobId = jobId, processId = 0))
         readyExecutionService.removeFromReady(jobId)
 
@@ -113,7 +113,7 @@ class KoolQueueScheduledJob(
 
 
   private fun processJobTaskSafely(jobTask: KoolQueueJobs) {
-    // Usar reflexión para obtener propiedades del jobTask
+    // Use reflection to get properties from jobTask
     val jobTaskClass = jobTask::class.java
     val classNameField = jobTaskClass.getDeclaredField("className").apply { isAccessible = true }
     val jobIdField = jobTaskClass.getDeclaredField("id").apply { isAccessible = true }
@@ -128,7 +128,7 @@ class KoolQueueScheduledJob(
       val inputStream = ByteArrayInputStream(metadata.toByteArray())
 
       if (applicationJob is ApplicationJob<*>?) {
-        // Recuperar el tipo de datos
+        // Retrieve the data type
         val dataType = applicationJob.getDataType()
         val koolTaskData = jsonMapper.readValue(inputStream, dataType)
 
@@ -139,7 +139,7 @@ class KoolQueueScheduledJob(
             onSuccess = {
               logger.info("Job taskId=$jobId className=$className finished successfully")
 
-              // ✅ SAFE UPDATE: Verificar antes de actualizar BD
+              // ✅ SAFE UPDATE: Verify before updating DB
               safeUpdateJobStatus(jobTask, jobId.toString(), "success") {
                 taskService.finishSuccessTask(jobTask)
               }
@@ -183,10 +183,10 @@ class KoolQueueScheduledJob(
     }
   }
 
-  // ✅ MÉTODO SEGURO: Solo actualiza BD si está disponible
+  // ✅ SAFE METHOD: Only updates DB if available
   private fun safeUpdateJobStatus(jobTask: Any, jobId: String, operation: String, updateAction: () -> Unit) {
     try {
-      // Verificar estado antes de intentar actualizar
+      // Verify state before attempting update
       if (!applicationContext.isRunning) {
         logger.debug("Skipping job status update for $jobId ($operation) - application shutting down")
         return
@@ -197,7 +197,7 @@ class KoolQueueScheduledJob(
         return
       }
 
-      // Ejecutar la actualización
+      // Execute the update
       updateAction()
 
     } catch (e: Exception) {
@@ -205,7 +205,7 @@ class KoolQueueScheduledJob(
     }
   }
 
-  // ✅ VERIFICAR: ¿Está disponible la base de datos?
+  // ✅ CHECK: Is the database available?
   private fun isDatabaseAvailable(): Boolean {
     return try {
       val entityManagerFactory = applicationContext.findBean(EntityManagerFactory::class.java)
@@ -215,7 +215,7 @@ class KoolQueueScheduledJob(
     }
   }
 
-  // ✅ MANEJO INTELIGENTE: Distinguir errores de shutdown vs errores reales
+  // ✅ SMART HANDLING: Distinguish shutdown errors vs real errors
   private fun handleShutdownAwareException(e: Exception, operation: String) {
     when {
       e.message?.contains("EntityManagerFactory is closed") == true -> {

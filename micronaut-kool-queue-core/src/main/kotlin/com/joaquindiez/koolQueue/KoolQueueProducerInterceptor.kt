@@ -30,12 +30,12 @@ class KoolQueueProducerInterceptor : MethodInterceptor<Any, Any> {
   val logger: Logger = LoggerFactory.getLogger(this::class.java)
 
   override fun intercept(context: MethodInvocationContext<Any, Any>): Any? {
-    logger.info("Antes de ejecutar el método: ${context.targetMethod.name}")
+    logger.info("Before executing method: ${context.targetMethod.name}")
 
-    // Llamar al método original
+    // Call the original method
     val result = context.proceed()
 
-    logger.info("Después de ejecutar el método: ${context.targetMethod.name}")
+    logger.info("After executing method: ${context.targetMethod.name}")
 
     return result
   }

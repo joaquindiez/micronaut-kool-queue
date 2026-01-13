@@ -28,7 +28,7 @@ open class ProcessesRepository(
   private val jdbcTemplate: JdbcOperations
 ) {
   /**
-   * RowMapper para convertir ResultSet a KoolQueueProcesses
+   * RowMapper to convert ResultSet to KoolQueueProcesses
    */
   private fun mapRow(rs: ResultSet): KoolQueueProcesses {
     val hostname = rs.getString("hostname")
@@ -49,7 +49,7 @@ open class ProcessesRepository(
   }
 
   /**
-   * Registra un nuevo proceso
+   * Registers a new process
    */
   @Transactional
   open fun registerProcess(process: KoolQueueProcesses): KoolQueueProcesses {
@@ -79,8 +79,8 @@ open class ProcessesRepository(
   }
 
   /**
-   * Actualiza el heartbeat de un proceso
-   * Retorna el número de filas actualizadas
+   * Updates the heartbeat of a process
+   * Returns the number of updated rows
    */
   @Transactional
   open fun updateHeartbeat(processId: Long): Int {

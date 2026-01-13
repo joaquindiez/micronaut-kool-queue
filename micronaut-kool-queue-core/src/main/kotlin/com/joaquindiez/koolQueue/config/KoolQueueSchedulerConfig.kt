@@ -23,29 +23,29 @@ import io.micronaut.context.annotation.Context
 @Context
 data class KoolQueueSchedulerConfig(
   /**
-   * Habilita o deshabilita el scheduler completamente
+   * Enables or disables the scheduler completely
    */
   var enabled: Boolean = true,
 
   /**
-   * Número máximo de tareas que pueden ejecutarse simultáneamente
+   * Maximum number of tasks that can run simultaneously
    */
   var maxConcurrentTasks: Int = 2,
 
   /**
-   * Intervalo por defecto entre ejecuciones de tareas
-   * Formato: Duration (ej: "30s", "5m", "1h")
+   * Default interval between task executions
+   * Format: Duration (e.g.: "30s", "5m", "1h")
    */
   var defaultInterval: String = "30s",
 
   /**
-   * Delay inicial por defecto antes de la primera ejecución
-   * Formato: Duration (ej: "10s", "1m")
+   * Default initial delay before the first execution
+   * Format: Duration (e.g.: "10s", "1m")
    */
   var defaultInitialDelay: String = "10s",
 
   /**
-   * Tiempo máximo en segundos para esperar durante shutdown graceful
+   * Maximum time in seconds to wait during graceful shutdown
    */
   var shutdownTimeoutSeconds: Long = 30
 )

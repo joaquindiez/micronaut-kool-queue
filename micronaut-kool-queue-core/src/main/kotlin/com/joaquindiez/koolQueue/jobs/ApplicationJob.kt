@@ -37,6 +37,7 @@ abstract class ApplicationJob<T : Any> {
   // ✅ Initialized after dependency injection
   private lateinit var cachedDataType: Class<T>
 
+  protected lateinit var jobRefence: JobReference
 
   abstract fun process(data: T): Result<Boolean>
 
@@ -123,7 +124,8 @@ abstract class ApplicationJob<T : Any> {
       val jobType = this::class.java  // ← Pasar la clase del job
 
       logger.debug("Enqueueing job of type: ${dataType.simpleName}")
-      return basicKoolQueueMessageProducer.send(data, jobType, scheduledAt)
+      this.jobRefence = basicKoolQueueMessageProducer.send(data, jobType, scheduledAt)
+      return this.jobRefence
     } catch (e: Exception) {
       logger.error("Failed to enqueue job", e)
       throw e

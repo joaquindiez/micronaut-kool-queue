@@ -27,7 +27,7 @@ class TestJobs : ApplicationJob<String>() {
   private val logger = LoggerFactory.getLogger(javaClass)
 
   override fun process(data: String): Result<Boolean> {
-    logger.info("Procesando Test Jobs -> $data")
+    logger.info("Procesando Test Jobs -> $data  ${this.jobRefence}")
     Thread.sleep(10_000)
     return Result.success(true)
   }

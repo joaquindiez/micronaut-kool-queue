@@ -17,15 +17,18 @@ package com.joaquindiez.koolQueue
 
 import io.micronaut.runtime.event.annotation.EventListener
 import io.micronaut.runtime.server.event.ServerStartupEvent
+import io.micronaut.transaction.annotation.Transactional
 import jakarta.inject.Singleton
+import jakarta.persistence.EntityManager
 
 
 /**
  * Service for initialization at application startup
  */
 @Singleton
-class KoolQueueInitializer(
-  private val schemaService: KoolQueueSchemaService
+open class KoolQueueInitializer(
+  private val schemaService: KoolQueueSchemaService,
+  private val entityManager: EntityManager
 ) {
 
   private val logger = org.slf4j.LoggerFactory.getLogger(javaClass)
@@ -36,7 +39,21 @@ class KoolQueueInitializer(
     init()
   }
 
-  fun init() {
+  /**
+   * Serialized across instances via a Postgres advisory lock so that two pods
+   * starting against an empty database cannot both pass the tablesExist() check
+   * and run dropAllTables()/createAllTables() concurrently.
+   *
+   * pg_advisory_xact_lock blocks until acquired and is auto-released on commit,
+   * so the second instance enters the lock only after the first has finished
+   * creating tables and will then take the "already initialized" branch.
+   */
+  @Transactional
+  open fun init() {
+    entityManager
+      .createNativeQuery("SELECT pg_advisory_xact_lock($INIT_LOCK_KEY)")
+      .singleResult
+
     if (!schemaService.tablesExist()) {
 
       logger.info("📦 Deleting previous Kool Queue version...")
@@ -53,5 +70,10 @@ class KoolQueueInitializer(
     } else {
       logger.info("✅ Kool Queue is already initialized")
     }
+  }
+
+  private companion object {
+    // App-specific lock id; identical on every instance so they contend for it.
+    private const val INIT_LOCK_KEY: Long = 0x4B4F4F4C5155L  // "KOOLQU"
   }
 }

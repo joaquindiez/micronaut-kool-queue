@@ -6,6 +6,7 @@ micronaut:
       max-concurrent-tasks: 4
       shutdown-timeout-seconds: 30
       enable-management-endpoints: true
+      schema: kool_queue
 
 endpoints:
   all:
@@ -33,3 +34,9 @@ jpa:
       hibernate:
         hbm2ddl:
           auto: update
+
+  logger:
+    levels:
+      com.joaquindiez.koolQueue: DEBUG
+      io.micronaut.context: WARN
+

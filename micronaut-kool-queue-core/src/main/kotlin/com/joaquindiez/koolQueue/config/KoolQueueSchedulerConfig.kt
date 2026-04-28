@@ -47,5 +47,17 @@ data class KoolQueueSchedulerConfig(
   /**
    * Maximum time in seconds to wait during graceful shutdown
    */
-  var shutdownTimeoutSeconds: Long = 30
+  var shutdownTimeoutSeconds: Long = 30,
+
+  /**
+   * Postgres schema where Kool Queue's tables live.
+   * - null/empty (default): tables are created and queried in the connection's
+   *   default schema (typically `public`), preserving the legacy behavior.
+   * - non-empty: the schema is created if missing and all DDL/DML is qualified
+   *   as `<schema>.kool_queue_*`, so Kool Queue's tables stay isolated from
+   *   the host application's tables.
+   *
+   * Must be a valid SQL identifier (`[A-Za-z_][A-Za-z0-9_]*`).
+   */
+  var schema: String? = null
 )

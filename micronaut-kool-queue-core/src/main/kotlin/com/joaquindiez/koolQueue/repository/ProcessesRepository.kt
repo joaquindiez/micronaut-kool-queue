@@ -15,6 +15,7 @@
  */
 package com.joaquindiez.koolQueue.repository
 
+import com.joaquindiez.koolQueue.config.KoolQueueTableNames
 import com.joaquindiez.koolQueue.domain.KoolQueueProcesses
 import io.micronaut.data.jdbc.runtime.JdbcOperations
 import io.micronaut.transaction.annotation.Transactional
@@ -25,7 +26,8 @@ import java.time.Instant
 
 @Singleton
 open class ProcessesRepository(
-  private val jdbcTemplate: JdbcOperations
+  private val jdbcTemplate: JdbcOperations,
+  private val tables: KoolQueueTableNames
 ) {
   /**
    * RowMapper to convert ResultSet to KoolQueueProcesses
@@ -54,7 +56,7 @@ open class ProcessesRepository(
   @Transactional
   open fun registerProcess(process: KoolQueueProcesses): KoolQueueProcesses {
     val sql = """
-            INSERT INTO kool_queue_processes (kind, name, pid, hostname, supervisor_id, last_heartbeat_at, metadata, created_at)
+            INSERT INTO ${tables.processes} (kind, name, pid, hostname, supervisor_id, last_heartbeat_at, metadata, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id, kind, name, pid, hostname, supervisor_id, last_heartbeat_at, metadata, created_at
         """.trimIndent()
@@ -85,7 +87,7 @@ open class ProcessesRepository(
   @Transactional
   open fun updateHeartbeat(processId: Long): Int {
     val sql = """
-            UPDATE kool_queue_processes
+            UPDATE ${tables.processes}
             SET last_heartbeat_at = ?
             WHERE id = ?
         """.trimIndent()

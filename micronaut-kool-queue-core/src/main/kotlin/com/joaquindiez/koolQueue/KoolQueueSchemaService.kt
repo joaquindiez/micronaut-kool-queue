@@ -16,19 +16,24 @@
 package com.joaquindiez.koolQueue
 
 
+import com.joaquindiez.koolQueue.config.KoolQueueTableNames
 import jakarta.inject.Singleton
 import jakarta.persistence.EntityManager
 import jakarta.transaction.Transactional
 
 
 @Singleton
-open class KoolQueueSchemaService(private val entityManager: EntityManager) {
+open class KoolQueueSchemaService(
+  private val entityManager: EntityManager,
+  private val tables: KoolQueueTableNames
+) {
 
   /**
    * Creates all Kool Queue system tables
    */
   @Transactional
   open fun createAllTables() {
+    createSchemaIfNeeded()
     createTableQueueJobs()
     createTableReadyExecutions()
     createTableScheduledExecutions()
@@ -44,12 +49,23 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
   }
 
   /**
+   * Creates the configured schema if one is set and it does not already exist.
+   * No-op when running in the default schema.
+   */
+  @Transactional
+  open fun createSchemaIfNeeded() {
+    val schema = tables.schema ?: return
+    entityManager.createNativeQuery("CREATE SCHEMA IF NOT EXISTS $schema").executeUpdate()
+    println("✅ Schema $schema ready")
+  }
+
+  /**
    * 1. MAIN TABLE: Central registry of all jobs
    */
   @Transactional
   open fun createTableQueueJobs() {
     val createTableSql = """
-            CREATE TABLE IF NOT EXISTS kool_queue_jobs (
+            CREATE TABLE IF NOT EXISTS ${tables.jobs} (
                 id BIGSERIAL PRIMARY KEY,
                 queue_name VARCHAR(128) NOT NULL,
                 class_name VARCHAR(512) NOT NULL,
@@ -62,20 +78,20 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
-            
+
             -- Indexes for performance
-            CREATE INDEX IF NOT EXISTS idx_kool_queue_jobs_finished_at 
-                ON kool_queue_jobs (finished_at);
-            
-            CREATE INDEX IF NOT EXISTS idx_kool_queue_jobs_queue_finished 
-                ON kool_queue_jobs (queue_name, finished_at);
-            
-            CREATE INDEX IF NOT EXISTS idx_kool_queue_jobs_class_name 
-                ON kool_queue_jobs (class_name);
+            CREATE INDEX IF NOT EXISTS idx_kool_queue_jobs_finished_at
+                ON ${tables.jobs} (finished_at);
+
+            CREATE INDEX IF NOT EXISTS idx_kool_queue_jobs_queue_finished
+                ON ${tables.jobs} (queue_name, finished_at);
+
+            CREATE INDEX IF NOT EXISTS idx_kool_queue_jobs_class_name
+                ON ${tables.jobs} (class_name);
         """.trimIndent()
 
     entityManager.createNativeQuery(createTableSql).executeUpdate()
-    println("✅ Table kool_queue_jobs created")
+    println("✅ Table ${tables.jobs} created")
   }
 
   /**
@@ -84,7 +100,7 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
   @Transactional
   open fun createTableReadyExecutions() {
     val createTableSql = """
-            CREATE TABLE IF NOT EXISTS kool_queue_ready_executions (
+            CREATE TABLE IF NOT EXISTS ${tables.readyExecutions} (
                 id BIGSERIAL PRIMARY KEY,
                 job_id BIGINT NOT NULL UNIQUE,               -- FK to kool_queue_jobs
                 queue_name VARCHAR(128) NOT NULL,
@@ -93,22 +109,22 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
 
                 CONSTRAINT fk_ready_job
                     FOREIGN KEY (job_id)
-                    REFERENCES kool_queue_jobs(id)
+                    REFERENCES ${tables.jobs}(id)
                     ON DELETE CASCADE
             );
 
             -- Critical indexes for worker polling
             -- Index for poll ALL queues
             CREATE INDEX IF NOT EXISTS idx_kool_ready_poll_all
-                ON kool_queue_ready_executions (priority ASC, job_id ASC);
+                ON ${tables.readyExecutions} (priority ASC, job_id ASC);
 
             -- Index for poll BY QUEUE
-            CREATE INDEX IF NOT EXISTS idx_kool_ready_poll_by_queue 
-                ON kool_queue_ready_executions (queue_name, priority ASC, job_id ASC);
+            CREATE INDEX IF NOT EXISTS idx_kool_ready_poll_by_queue
+                ON ${tables.readyExecutions} (queue_name, priority ASC, job_id ASC);
         """.trimIndent()
 
     entityManager.createNativeQuery(createTableSql).executeUpdate()
-    println("✅ Table kool_queue_ready_executions created")
+    println("✅ Table ${tables.readyExecutions} created")
   }
 
   /**
@@ -117,7 +133,7 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
   @Transactional
   open fun createTableScheduledExecutions() {
     val createTableSql = """
-            CREATE TABLE IF NOT EXISTS kool_queue_scheduled_executions (
+            CREATE TABLE IF NOT EXISTS ${tables.scheduledExecutions} (
                 id BIGSERIAL PRIMARY KEY,
                 job_id BIGINT NOT NULL UNIQUE,               -- FK to kool_queue_jobs
                 queue_name VARCHAR(128) NOT NULL,
@@ -127,17 +143,17 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
 
                 CONSTRAINT fk_scheduled_job
                     FOREIGN KEY (job_id)
-                    REFERENCES kool_queue_jobs(id)
+                    REFERENCES ${tables.jobs}(id)
                     ON DELETE CASCADE
             );
 
             -- Index for Dispatcher to find jobs ready to execute
-            CREATE INDEX IF NOT EXISTS idx_kool_scheduled_dispatch 
-                ON kool_queue_scheduled_executions (scheduled_at ASC, priority ASC, job_id ASC);
+            CREATE INDEX IF NOT EXISTS idx_kool_scheduled_dispatch
+                ON ${tables.scheduledExecutions} (scheduled_at ASC, priority ASC, job_id ASC);
         """.trimIndent()
 
     entityManager.createNativeQuery(createTableSql).executeUpdate()
-    println("✅ Table kool_queue_scheduled_executions created")
+    println("✅ Table ${tables.scheduledExecutions} created")
   }
 
 
@@ -148,7 +164,7 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
   @Transactional
   open fun createTableClaimedExecutions() {
     val createTableSql = """
-            CREATE TABLE IF NOT EXISTS kool_queue_claimed_executions (
+            CREATE TABLE IF NOT EXISTS ${tables.claimedExecutions} (
                 id BIGSERIAL PRIMARY KEY,
                 job_id BIGINT NOT NULL UNIQUE,               -- FK to kool_queue_jobs
                 process_id BIGINT,                           -- FK to kool_queue_processes
@@ -156,17 +172,17 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
 
                 CONSTRAINT fk_claimed_job
                     FOREIGN KEY (job_id)
-                    REFERENCES kool_queue_jobs(id)
+                    REFERENCES ${tables.jobs}(id)
                     ON DELETE CASCADE
             );
 
             -- Index to find jobs from a specific process
-            CREATE INDEX IF NOT EXISTS idx_kool_claimed_process 
-                ON kool_queue_claimed_executions (process_id, job_id);
+            CREATE INDEX IF NOT EXISTS idx_kool_claimed_process
+                ON ${tables.claimedExecutions} (process_id, job_id);
         """.trimIndent()
 
     entityManager.createNativeQuery(createTableSql).executeUpdate()
-    println("✅ Table kool_queue_claimed_executions created")
+    println("✅ Table ${tables.claimedExecutions} created")
   }
 
   /**
@@ -175,7 +191,7 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
   @Transactional
   open fun createTableFailedExecutions() {
     val createTableSql = """
-            CREATE TABLE IF NOT EXISTS kool_queue_failed_executions (
+            CREATE TABLE IF NOT EXISTS ${tables.failedExecutions} (
                 id BIGSERIAL PRIMARY KEY,
                 job_id BIGINT NOT NULL UNIQUE,               -- FK to kool_queue_jobs
                 error TEXT,                                  -- Stack trace and error message
@@ -183,17 +199,17 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
 
                 CONSTRAINT fk_failed_job
                     FOREIGN KEY (job_id)
-                    REFERENCES kool_queue_jobs(id)
+                    REFERENCES ${tables.jobs}(id)
                     ON DELETE CASCADE
             );
 
             -- Index for searches by job_id
-            CREATE INDEX IF NOT EXISTS idx_kool_failed_job 
-                ON kool_queue_failed_executions (job_id);
+            CREATE INDEX IF NOT EXISTS idx_kool_failed_job
+                ON ${tables.failedExecutions} (job_id);
         """.trimIndent()
 
     entityManager.createNativeQuery(createTableSql).executeUpdate()
-    println("✅ Table kool_queue_failed_executions created")
+    println("✅ Table ${tables.failedExecutions} created")
   }
 
   /**
@@ -202,7 +218,7 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
   @Transactional
   open fun createTableProcesses() {
     val createTableSql = """
-            CREATE TABLE IF NOT EXISTS kool_queue_processes (
+            CREATE TABLE IF NOT EXISTS ${tables.processes} (
                 id BIGSERIAL PRIMARY KEY,
                 kind VARCHAR(50) NOT NULL,                   -- 'Worker', 'Dispatcher', 'Scheduler'
                 name VARCHAR(255) NOT NULL,                  -- 'Worker-1', 'Dispatcher-1'
@@ -219,15 +235,15 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
             );
 
             -- Index to detect dead processes
-            CREATE INDEX IF NOT EXISTS idx_kool_processes_heartbeat 
-                ON kool_queue_processes (last_heartbeat_at);
-            
-            CREATE INDEX IF NOT EXISTS idx_kool_processes_supervisor 
-                ON kool_queue_processes (supervisor_id);
+            CREATE INDEX IF NOT EXISTS idx_kool_processes_heartbeat
+                ON ${tables.processes} (last_heartbeat_at);
+
+            CREATE INDEX IF NOT EXISTS idx_kool_processes_supervisor
+                ON ${tables.processes} (supervisor_id);
         """.trimIndent()
 
     entityManager.createNativeQuery(createTableSql).executeUpdate()
-    println("✅ Table kool_queue_processes created")
+    println("✅ Table ${tables.processes} created")
   }
 
   /**
@@ -236,7 +252,7 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
   @Transactional
   open fun createTableRecurringExecutions() {
     val createTableSql = """
-            CREATE TABLE IF NOT EXISTS kool_queue_recurring_executions (
+            CREATE TABLE IF NOT EXISTS ${tables.recurringExecutions} (
                 id BIGSERIAL PRIMARY KEY,
                 job_id BIGINT NOT NULL,                      -- FK to kool_queue_jobs
                 task_key VARCHAR(255) NOT NULL,              -- Recurring task key
@@ -245,7 +261,7 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
 
                 CONSTRAINT fk_recurring_job
                     FOREIGN KEY (job_id)
-                    REFERENCES kool_queue_jobs(id)
+                    REFERENCES ${tables.jobs}(id)
                     ON DELETE CASCADE,
 
                 -- CRITICAL: Prevent duplicates with unique constraint
@@ -254,12 +270,12 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
             );
 
             -- Index for fast searches
-            CREATE INDEX IF NOT EXISTS idx_kool_recurring_job 
-                ON kool_queue_recurring_executions (job_id);
+            CREATE INDEX IF NOT EXISTS idx_kool_recurring_job
+                ON ${tables.recurringExecutions} (job_id);
         """.trimIndent()
 
     entityManager.createNativeQuery(createTableSql).executeUpdate()
-    println("✅ Table kool_queue_recurring_executions created")
+    println("✅ Table ${tables.recurringExecutions} created")
   }
 
   /**
@@ -268,7 +284,7 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
   @Transactional
   open fun createTableBlockedExecutions() {
     val createTableSql = """
-            CREATE TABLE IF NOT EXISTS kool_queue_blocked_executions (
+            CREATE TABLE IF NOT EXISTS ${tables.blockedExecutions} (
                 id BIGSERIAL PRIMARY KEY,
                 job_id BIGINT NOT NULL UNIQUE,               -- FK to kool_queue_jobs
                 queue_name VARCHAR(128) NOT NULL,
@@ -279,20 +295,20 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
 
                 CONSTRAINT fk_blocked_job
                     FOREIGN KEY (job_id)
-                    REFERENCES kool_queue_jobs(id)
+                    REFERENCES ${tables.jobs}(id)
                     ON DELETE CASCADE
             );
 
             -- Indexes for concurrency management
-            CREATE INDEX IF NOT EXISTS idx_kool_blocked_for_release 
-                ON kool_queue_blocked_executions (concurrency_key, priority ASC, job_id ASC);
-            
-            CREATE INDEX IF NOT EXISTS idx_kool_blocked_for_maintenance 
-                ON kool_queue_blocked_executions (expires_at, concurrency_key);
+            CREATE INDEX IF NOT EXISTS idx_kool_blocked_for_release
+                ON ${tables.blockedExecutions} (concurrency_key, priority ASC, job_id ASC);
+
+            CREATE INDEX IF NOT EXISTS idx_kool_blocked_for_maintenance
+                ON ${tables.blockedExecutions} (expires_at, concurrency_key);
         """.trimIndent()
 
     entityManager.createNativeQuery(createTableSql).executeUpdate()
-    println("✅ Table kool_queue_blocked_executions created")
+    println("✅ Table ${tables.blockedExecutions} created")
   }
 
   /**
@@ -301,7 +317,7 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
   @Transactional
   open fun createTableSemaphores() {
     val createTableSql = """
-            CREATE TABLE IF NOT EXISTS kool_queue_semaphores (
+            CREATE TABLE IF NOT EXISTS ${tables.semaphores} (
                 id BIGSERIAL PRIMARY KEY,
                 key VARCHAR(255) NOT NULL UNIQUE,            -- Concurrency key
                 value INT NOT NULL DEFAULT 1,                -- Available slots
@@ -311,15 +327,15 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
             );
 
             -- Indexes for performance
-            CREATE INDEX IF NOT EXISTS idx_kool_semaphores_expires_at 
-                ON kool_queue_semaphores (expires_at);
-            
-            CREATE INDEX IF NOT EXISTS idx_kool_semaphores_key_value 
-                ON kool_queue_semaphores (key, value);
+            CREATE INDEX IF NOT EXISTS idx_kool_semaphores_expires_at
+                ON ${tables.semaphores} (expires_at);
+
+            CREATE INDEX IF NOT EXISTS idx_kool_semaphores_key_value
+                ON ${tables.semaphores} (key, value);
         """.trimIndent()
 
     entityManager.createNativeQuery(createTableSql).executeUpdate()
-    println("✅ Table kool_queue_semaphores created")
+    println("✅ Table ${tables.semaphores} created")
   }
 
   /**
@@ -328,19 +344,19 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
   @Transactional
   open fun createTablePauses() {
     val createTableSql = """
-            CREATE TABLE IF NOT EXISTS kool_queue_pauses (
+            CREATE TABLE IF NOT EXISTS ${tables.pauses} (
                 id BIGSERIAL PRIMARY KEY,
                 queue_name VARCHAR(128) NOT NULL UNIQUE,     -- Paused queue name
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
             -- Index for fast searches by name
-            CREATE INDEX IF NOT EXISTS idx_kool_pauses_queue_name 
-                ON kool_queue_pauses (queue_name);
+            CREATE INDEX IF NOT EXISTS idx_kool_pauses_queue_name
+                ON ${tables.pauses} (queue_name);
         """.trimIndent()
 
     entityManager.createNativeQuery(createTableSql).executeUpdate()
-    println("✅ Table kool_queue_pauses created")
+    println("✅ Table ${tables.pauses} created")
   }
 
   /**
@@ -348,18 +364,8 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
    */
   @Transactional
   open fun dropAllTables() {
-    val dropTablesSql = """
-            DROP TABLE IF EXISTS kool_queue_pauses CASCADE;
-            DROP TABLE IF EXISTS kool_queue_semaphores CASCADE;
-            DROP TABLE IF EXISTS kool_queue_blocked_executions CASCADE;
-            DROP TABLE IF EXISTS kool_queue_recurring_executions CASCADE;
-            DROP TABLE IF EXISTS kool_queue_processes CASCADE;
-            DROP TABLE IF EXISTS kool_queue_failed_executions CASCADE;
-            DROP TABLE IF EXISTS kool_queue_claimed_executions CASCADE;
-            DROP TABLE IF EXISTS kool_queue_scheduled_executions CASCADE;
-            DROP TABLE IF EXISTS kool_queue_ready_executions CASCADE;
-            DROP TABLE IF EXISTS kool_queue_jobs CASCADE;
-        """.trimIndent()
+    val dropTablesSql = tables.allQualifiedDropOrder
+      .joinToString("\n") { "DROP TABLE IF EXISTS $it CASCADE;" }
 
     entityManager.createNativeQuery(dropTablesSql).executeUpdate()
     println("✅ All Kool Queue tables deleted")
@@ -382,9 +388,9 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
     )
 
     val query = """
-            SELECT COUNT(*) 
-            FROM information_schema.tables 
-            WHERE table_schema = 'public' 
+            SELECT COUNT(*)
+            FROM information_schema.tables
+            WHERE table_schema = '${tables.informationSchemaName}'
             AND table_name IN (${requiredTables.joinToString(",") { "'$it'" }})
         """.trimIndent()
 
@@ -402,27 +408,27 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
   open fun getTableStats(): Map<String, Long> {
     val stats = mutableMapOf<String, Long>()
 
-    val tables = listOf(
-      "kool_queue_jobs",
-      "kool_queue_ready_executions",
-      "kool_queue_scheduled_executions",
-      "kool_queue_claimed_executions",
-      "kool_queue_failed_executions",
-      "kool_queue_processes",
-      "kool_queue_recurring_executions",
-      "kool_queue_blocked_executions",
-      "kool_queue_semaphores",
-      "kool_queue_pauses"
+    val tablePairs: List<Pair<String, String>> = listOf(
+      "kool_queue_jobs" to tables.jobs,
+      "kool_queue_ready_executions" to tables.readyExecutions,
+      "kool_queue_scheduled_executions" to tables.scheduledExecutions,
+      "kool_queue_claimed_executions" to tables.claimedExecutions,
+      "kool_queue_failed_executions" to tables.failedExecutions,
+      "kool_queue_processes" to tables.processes,
+      "kool_queue_recurring_executions" to tables.recurringExecutions,
+      "kool_queue_blocked_executions" to tables.blockedExecutions,
+      "kool_queue_semaphores" to tables.semaphores,
+      "kool_queue_pauses" to tables.pauses
     )
 
-    tables.forEach { tableName ->
+    tablePairs.forEach { (label, qualifiedName) ->
       try {
         val count = entityManager
-          .createNativeQuery("SELECT COUNT(*) FROM $tableName")
+          .createNativeQuery("SELECT COUNT(*) FROM $qualifiedName")
           .singleResult as Long
-        stats[tableName] = count
+        stats[label] = count
       } catch (e: Exception) {
-        stats[tableName] = -1 // Table does not exist
+        stats[label] = -1 // Table does not exist
       }
     }
 
@@ -435,23 +441,12 @@ open class KoolQueueSchemaService(private val entityManager: EntityManager) {
    */
   @Transactional
   open fun getMissingTables(): List<String> {
-    val allTables = listOf(
-      "kool_queue_jobs",
-      "kool_queue_ready_executions",
-      "kool_queue_scheduled_executions",
-      "kool_queue_claimed_executions",
-      "kool_queue_failed_executions",
-      "kool_queue_processes",
-      "kool_queue_recurring_executions",
-      "kool_queue_blocked_executions",
-      "kool_queue_semaphores",
-      "kool_queue_pauses"
-    )
+    val allTables = tables.allBareNamesDropOrder
 
     val query = """
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = 'public' 
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = '${tables.informationSchemaName}'
             AND table_name IN (${allTables.joinToString(",") { "'$it'" }})
         """.trimIndent()
 

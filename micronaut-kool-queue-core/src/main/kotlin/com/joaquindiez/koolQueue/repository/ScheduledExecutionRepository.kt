@@ -15,9 +15,8 @@
  */
 package com.joaquindiez.koolQueue.repository
 
-import com.joaquindiez.koolQueue.domain.KoolQueueJobs
+import com.joaquindiez.koolQueue.config.KoolQueueTableNames
 import com.joaquindiez.koolQueue.domain.KoolQueueScheduledExecution
-import com.joaquindiez.koolQueue.domain.TaskStatus
 import io.micronaut.data.jdbc.runtime.JdbcOperations
 import io.micronaut.transaction.annotation.Transactional
 import jakarta.inject.Singleton
@@ -27,7 +26,8 @@ import java.time.LocalDateTime
 
 @Singleton
 open class ScheduledExecutionRepository(
-  private val jdbcTemplate: JdbcOperations
+  private val jdbcTemplate: JdbcOperations,
+  private val tables: KoolQueueTableNames
 ) {
 
   /**
@@ -50,7 +50,7 @@ open class ScheduledExecutionRepository(
   @Transactional
   open fun save(readyExecution: KoolQueueScheduledExecution): KoolQueueScheduledExecution {
     val sql = """
-            INSERT INTO kool_queue_scheduled_executions (job_id, queue_name, priority, scheduled_at,created_at)
+            INSERT INTO ${tables.scheduledExecutions} (job_id, queue_name, priority, scheduled_at,created_at)
             VALUES (?, ?, ?, ?, ?)
             RETURNING id, job_id, queue_name, priority,scheduled_at, created_at
         """.trimIndent()
@@ -77,7 +77,7 @@ open class ScheduledExecutionRepository(
   fun findByJobId(jobId: Long): KoolQueueScheduledExecution? {
     val sql = """
             SELECT id, job_id, queue_name, priority, scheduled_at, created_at
-            FROM kool_queue_scheduled_executions
+            FROM ${tables.scheduledExecutions}
             WHERE job_id = ?
         """.trimIndent()
 
@@ -96,7 +96,7 @@ open class ScheduledExecutionRepository(
    * Checks if a scheduled execution exists for the given job_id
    */
   fun existsByJobId(jobId: Long): Boolean {
-    val sql = "SELECT 1 FROM kool_queue_scheduled_executions WHERE job_id = ? LIMIT 1"
+    val sql = "SELECT 1 FROM ${tables.scheduledExecutions} WHERE job_id = ? LIMIT 1"
 
     return jdbcTemplate.prepareStatement(sql) { ps ->
       ps.setLong(1, jobId)
@@ -112,7 +112,7 @@ open class ScheduledExecutionRepository(
   fun findNextJobsPending(limit: Int = 1): List<KoolQueueScheduledExecution> {
     val sql = """
             SELECT *
-            FROM kool_queue_scheduled_executions
+            FROM ${tables.scheduledExecutions}
             WHERE  scheduled_at <= ?
             FOR UPDATE SKIP LOCKED
             LIMIT ?
@@ -142,7 +142,7 @@ open class ScheduledExecutionRepository(
    */
   @Transactional
   open fun deleteByJobId(jobId: Long): Int {
-    val sql = "DELETE FROM kool_queue_scheduled_executions WHERE job_id = ?"
+    val sql = "DELETE FROM ${tables.scheduledExecutions} WHERE job_id = ?"
 
     return jdbcTemplate.prepareStatement(sql) { ps ->
       ps.setLong(1, jobId)

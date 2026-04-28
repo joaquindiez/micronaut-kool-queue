@@ -15,7 +15,7 @@
  */
 package com.joaquindiez.koolQueue.repository
 
-import com.joaquindiez.koolQueue.domain.KoolQueueClaimedExecutions
+import com.joaquindiez.koolQueue.config.KoolQueueTableNames
 import com.joaquindiez.koolQueue.domain.KoolQueueFailedExecutions
 import io.micronaut.data.jdbc.runtime.JdbcOperations
 import io.micronaut.transaction.annotation.Transactional
@@ -26,7 +26,8 @@ import java.sql.Timestamp
 
 @Singleton
 open class FailedExecutionsRepository(
-  private val jdbcTemplate: JdbcOperations
+  private val jdbcTemplate: JdbcOperations,
+  private val tables: KoolQueueTableNames
 ) {
   /**
    * RowMapper to convert ResultSet to KoolQueueFailedExecutions
@@ -46,7 +47,7 @@ open class FailedExecutionsRepository(
   @Transactional
   open fun save(failedExecution: KoolQueueFailedExecutions): KoolQueueFailedExecutions {
     val sql = """
-            INSERT INTO kool_queue_failed_executions (job_id, error, created_at)
+            INSERT INTO ${tables.failedExecutions} (job_id, error, created_at)
             VALUES (?, ?, ?)
             RETURNING id, job_id, error, created_at
         """.trimIndent()
@@ -71,7 +72,7 @@ open class FailedExecutionsRepository(
    */
   @Transactional
   open fun deleteByJobId(jobId: Long): Int {
-    val sql = "DELETE FROM kool_queue_failed_executions WHERE job_id = ?"
+    val sql = "DELETE FROM ${tables.failedExecutions} WHERE job_id = ?"
 
     return jdbcTemplate.prepareStatement(sql) { ps ->
       ps.setLong(1, jobId)
@@ -85,7 +86,7 @@ open class FailedExecutionsRepository(
   fun findByJobId(jobId: Long): KoolQueueFailedExecutions? {
     val sql = """
             SELECT id, job_id, error, created_at
-            FROM kool_queue_failed_executions
+            FROM ${tables.failedExecutions}
             WHERE job_id = ?
         """.trimIndent()
 
@@ -104,7 +105,7 @@ open class FailedExecutionsRepository(
    * Checks if a failed execution exists for the given job_id
    */
   fun existsByJobId(jobId: Long): Boolean {
-    val sql = "SELECT 1 FROM kool_queue_failed_executions WHERE job_id = ? LIMIT 1"
+    val sql = "SELECT 1 FROM ${tables.failedExecutions} WHERE job_id = ? LIMIT 1"
 
     return jdbcTemplate.prepareStatement(sql) { ps ->
       ps.setLong(1, jobId)

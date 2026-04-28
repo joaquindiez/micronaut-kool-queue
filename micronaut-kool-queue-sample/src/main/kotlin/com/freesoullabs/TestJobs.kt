@@ -26,10 +26,26 @@ class TestJobs : ApplicationJob<String>() {
 
   private val logger = LoggerFactory.getLogger(javaClass)
 
+  override val queue: String = "emails"
+
   override fun process(data: String): Result<Boolean> {
-    logger.info("Procesando Test Jobs -> $data  ${this.jobRefence}")
-    Thread.sleep(10_000)
+    logger.info("Procesando Test Jobs (queue=$queue) -> $data")
+    Thread.sleep(2_000)
     return Result.success(true)
   }
 
+}
+
+@Singleton
+class ReportJobs : ApplicationJob<String>() {
+
+  private val logger = LoggerFactory.getLogger(javaClass)
+
+  override val queue: String = "reports"
+
+  override fun process(data: String): Result<Boolean> {
+    logger.info("Procesando Report (queue=$queue) -> $data")
+    Thread.sleep(2_000)
+    return Result.success(true)
+  }
 }

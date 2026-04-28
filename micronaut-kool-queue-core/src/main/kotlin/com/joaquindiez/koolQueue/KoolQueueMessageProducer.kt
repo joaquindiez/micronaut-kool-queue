@@ -27,8 +27,10 @@ interface KoolQueueMessageProducer {
    *
    * @param msg The message payload to be processed
    * @param className The class that will process this message
+   * @param queue Logical queue this job belongs to. Workers can be configured
+   *              to only poll a subset of queues, enabling per-machine routing.
    * @param scheduledAt Optional time to schedule the job (null for immediate execution)
    * @return JobReference containing the job ID for tracking
    */
-  fun send(msg: Any, className: Class<*>, scheduledAt: LocalDateTime?): JobReference
+  fun send(msg: Any, className: Class<*>, queue: String, scheduledAt: LocalDateTime?): JobReference
 }

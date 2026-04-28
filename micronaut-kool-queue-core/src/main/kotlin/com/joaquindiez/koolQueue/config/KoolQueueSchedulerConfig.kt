@@ -50,6 +50,15 @@ data class KoolQueueSchedulerConfig(
   var shutdownTimeoutSeconds: Long = 30,
 
   /**
+   * Queues this worker will poll, in priority order.
+   * Empty list (the default) polls all queues globally.
+   *
+   * Example for a node that only handles emails and falls back to default:
+   * `queues: ["emails", "default"]`
+   */
+  var queues: List<String> = emptyList(),
+
+  /**
    * Postgres schema where Kool Queue's tables live.
    * - null/empty (default): tables are created and queried in the connection's
    *   default schema (typically `public`), preserving the legacy behavior.

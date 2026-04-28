@@ -7,6 +7,10 @@ micronaut:
       shutdown-timeout-seconds: 30
       enable-management-endpoints: true
       schema: kool_queue
+      queues:
+        - emails
+        - reports
+        # "vip" intentionally NOT included — jobs sent there should sit unprocessed
 
 endpoints:
   all:

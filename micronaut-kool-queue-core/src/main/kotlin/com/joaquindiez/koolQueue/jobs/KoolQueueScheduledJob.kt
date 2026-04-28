@@ -15,6 +15,7 @@
  */
 package com.joaquindiez.koolQueue.jobs
 
+import com.joaquindiez.koolQueue.config.KoolQueueSchedulerConfig
 import com.joaquindiez.koolQueue.core.KoolQueueTask
 
 import com.joaquindiez.koolQueue.core.RegisteredTask
@@ -40,6 +41,7 @@ class KoolQueueScheduledJob(
   private val claimedExecutionsRepository: KoolQueueClaimedExecutionsRepository,
   private val jsonMapper: JsonMapper,
   private val applicationContext: ApplicationContext,  // ✅ Added to verify shutdown
+  private val schedulerConfig: KoolQueueSchedulerConfig,
    ) {
 
   @Inject
@@ -85,10 +87,15 @@ class KoolQueueScheduledJob(
       return
     }
 
-    //01. Get Jobs Ready to Execute
-    val readyExecuteJobList = readyExecutionService.pollJobsForExecution(limit = 1)
-    //val nextPendingTasks =  taskService.findNextJobsPending(limit = 1)
-    logger.debug("Check next Jobs to Run pending jobs to Run ${readyExecuteJobList.size}")
+    //01. Get Jobs Ready to Execute — filter by configured queues if any
+    val configuredQueues = schedulerConfig.queues
+    val readyExecuteJobList = if (configuredQueues.isEmpty()) {
+      readyExecutionService.pollJobsForExecution(limit = 1)
+    } else {
+      readyExecutionService.pollJobsForExecutionByQueues(configuredQueues, limit = 1)
+    }
+    val queueLabel: String = if (configuredQueues.isEmpty()) "ALL" else configuredQueues.toString()
+    logger.debug("Check next Jobs to Run pending jobs to Run ${readyExecuteJobList.size} (queues=$queueLabel)")
 
     for (jobId in readyExecuteJobList) {
       // ✅ CHECK: State before processing each job

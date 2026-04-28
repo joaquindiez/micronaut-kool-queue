@@ -39,6 +39,13 @@ abstract class ApplicationJob<T : Any> {
 
   protected lateinit var jobRefence: JobReference
 
+  /**
+   * Default queue used when processLater is invoked without an explicit queue.
+   * Override in subclasses to route a job class to a dedicated queue:
+   * `override val queue: String = "emails"`
+   */
+  open val queue: String = DEFAULT_QUEUE
+
   abstract fun process(data: T): Result<Boolean>
 
 
@@ -106,6 +113,7 @@ abstract class ApplicationJob<T : Any> {
    * Enqueues a job for later processing.
    *
    * @param data The payload to be processed by this job
+   * @param queue Queue to enqueue into. If null, uses the job class default ([queue]).
    * @param scheduledAt Optional time to schedule the job (null for immediate execution)
    * @return JobReference containing the job ID for tracking status
    *
@@ -114,17 +122,21 @@ abstract class ApplicationJob<T : Any> {
    * val jobRef = myJob.processLater(payload)
    * println("Job enqueued with ID: ${jobRef.jobId}")
    *
+   * // Override the destination queue per call:
+   * myJob.processLater(payload, queue = "high-priority")
+   *
    * // Later, check the status
    * val status = jobTracker.getStatus(jobRef.jobId)
    * ```
    */
-  fun processLater(data: T, scheduledAt: LocalDateTime? = null): JobReference {
+  fun processLater(data: T, queue: String? = null, scheduledAt: LocalDateTime? = null): JobReference {
     try {
       val dataType = getDataType()
       val jobType = this::class.java  // ← Pasar la clase del job
+      val effectiveQueue = queue ?: this.queue
 
-      logger.debug("Enqueueing job of type: ${dataType.simpleName}")
-      this.jobRefence = basicKoolQueueMessageProducer.send(data, jobType, scheduledAt)
+      logger.debug("Enqueueing job of type: ${dataType.simpleName} on queue '$effectiveQueue'")
+      this.jobRefence = basicKoolQueueMessageProducer.send(data, jobType, effectiveQueue, scheduledAt)
       return this.jobRefence
     } catch (e: Exception) {
       logger.error("Failed to enqueue job", e)
@@ -137,5 +149,9 @@ abstract class ApplicationJob<T : Any> {
     @Suppress("UNCHECKED_CAST")
     val typedData = rawData as T
     return process(typedData)
+  }
+
+  companion object {
+    const val DEFAULT_QUEUE: String = "default"
   }
 }

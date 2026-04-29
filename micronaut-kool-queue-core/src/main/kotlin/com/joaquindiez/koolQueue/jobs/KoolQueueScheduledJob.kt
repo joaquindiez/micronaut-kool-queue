@@ -16,6 +16,7 @@
 package com.joaquindiez.koolQueue.jobs
 
 import com.joaquindiez.koolQueue.config.KoolQueueSchedulerConfig
+import com.joaquindiez.koolQueue.core.KoolQueueScheduler
 import com.joaquindiez.koolQueue.core.KoolQueueTask
 
 import com.joaquindiez.koolQueue.core.RegisteredTask
@@ -42,14 +43,22 @@ class KoolQueueScheduledJob(
   private val jsonMapper: JsonMapper,
   private val applicationContext: ApplicationContext,  // ✅ Added to verify shutdown
   private val schedulerConfig: KoolQueueSchedulerConfig,
+  private val scheduler: KoolQueueScheduler,
    ) {
+
+  companion object {
+    // Task names referenced both by the @KoolQueueTask annotation and at runtime
+    // when looking up our own kool_queue_processes.id from the scheduler.
+    const val SCHEDULED_TASK_NAME: String = "checkScheduledTasks"
+    const val READY_TASK_NAME: String = "checkReadyTasks"
+  }
 
   @Inject
   lateinit var beanContext: BeanContext
 
   private val logger = LoggerFactory.getLogger(javaClass)
 
-  @KoolQueueTask(name = "checkScheduledTasks", interval = "1s", initialDelay = "10s", maxConcurrency = 1)
+  @KoolQueueTask(name = SCHEDULED_TASK_NAME, interval = "1s", initialDelay = "10s", maxConcurrency = 1)
   fun checkScheduledTasks(){
 
     logger.debug("Check Scheduling tasks")
@@ -71,7 +80,7 @@ class KoolQueueScheduledJob(
   }
 
   //@Scheduled(fixedRate = "2s", fixedDelay = "5s")
-  @KoolQueueTask(name = "checkReadyTasks", interval = "0.1s", initialDelay = "10s",  maxConcurrency = 5)
+  @KoolQueueTask(name = READY_TASK_NAME, interval = "0.1s", initialDelay = "10s",  maxConcurrency = 5)
   //context(task: RegisteredTask)
   fun checkPendingTasks() {
 
@@ -97,6 +106,17 @@ class KoolQueueScheduledJob(
     val queueLabel: String = if (configuredQueues.isEmpty()) "ALL" else configuredQueues.toString()
     logger.debug("Check next Jobs to Run pending jobs to Run ${readyExecuteJobList.size} (queues=$queueLabel)")
 
+    // Resolve our own kool_queue_processes.id once per poll. The scheduler
+    // populates it lazily on the first scheduled tick (inside the executor's
+    // ThreadFactory), so by the time this method runs the id should be set.
+    // If for some reason it isn't yet, we fall back to 0 — same behaviour as
+    // before — but log it so it's visible.
+    val workerProcessId = scheduler.getProcessIdForTask(READY_TASK_NAME)
+    if (workerProcessId == null) {
+      logger.warn("Worker process id for task '$READY_TASK_NAME' is not registered yet; claimed jobs will record process_id=0")
+    }
+    val claimingProcessId = workerProcessId ?: 0L
+
     for (jobId in readyExecuteJobList) {
       // ✅ CHECK: State before processing each job
       if (!applicationContext.isRunning || !isDatabaseAvailable()) {
@@ -107,7 +127,7 @@ class KoolQueueScheduledJob(
       val job = taskService.findById(jobId)
       if ( job != null ) {
         //02. Insert in claimed_executions and delete from ready executions
-        claimedExecutionsRepository.save(KoolQueueClaimedExecutions(jobId = jobId, processId = 0))
+        claimedExecutionsRepository.save(KoolQueueClaimedExecutions(jobId = jobId, processId = claimingProcessId))
         readyExecutionService.removeFromReady(jobId)
 
         processJobTaskSafely(job)

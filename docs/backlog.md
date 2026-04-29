@@ -24,25 +24,19 @@ with their commit hashes for traceability.
   `KoolQueueTableNames` centralizes qualified names with identifier
   validation; all DDL/DML in the schema service and 6 repos is qualified.
 
-## In progress (working tree, not yet committed)
+- **AnnotationProcessor exception logging** · `d1ebda4`
+  Failures on beans that declare `@KoolQueueTask` methods now surface at ERROR
+  with the cause, instead of being swallowed at DEBUG. Unrelated beans that
+  fail to load stay at DEBUG via class-level reflection pre-filter.
 
-- **AnnotationProcessor exception logging**
-  The processor previously swallowed all exceptions at DEBUG, including
-  failures on beans that *did* declare `@KoolQueueTask` methods. That made
-  bean-wiring bugs invisible: the worker silently never started, no log
-  explaining why. The fix pre-filters by class-level reflection (still DEBUG
-  for unrelated beans) and escalates to ERROR for any failure on a bean that
-  carries task methods.
+- **#3 — Real `processId` in `claimed_executions`** · `ffc09ae`
+  `KoolQueueScheduler.getProcessIdForTask(name)` exposes the process row id
+  for a registered task; `KoolQueueScheduledJob` looks up its own task name
+  and stamps that id on every claim instead of hardcoding 0.
 
 ---
 
 ## Pending — multi-instance & robustness
-
-- **#3 — Real `processId` in `claimed_executions`**
-  Today `claimedExecutionsRepository.save(KoolQueueClaimedExecutions(jobId, processId = 0))`
-  hardcodes 0, losing the job↔worker link. Pre-requisite for #4. Wire the
-  `currentProcessId` from `KoolQueueScheduler.RegisteredTask` down to
-  `KoolQueueScheduledJob`.
 
 - **#4 — Reaper for orphaned claimed jobs** *(critical for multi-machine)*
   If a worker dies with jobs in `claimed_executions`, they sit there forever.
@@ -112,12 +106,11 @@ with their commit hashes for traceability.
 The order optimizes for "make multi-machine actually trustworthy" first,
 then features, then structural cleanup:
 
-1. **#3** processId real (small, mechanical, prereq for #4)
-2. **#4** reaper (turns multi-instance from "works" into "production-safe")
-3. **#5** claim atomicity (closes a real correctness gap)
-4. **#13** jobRefence lateinit fix (low cost, removes a footgun)
-5. **#6** retries with backoff (visible user value)
-6. **#12** per-queue pollers (only if you hit starvation in real use)
-7. **#7 + #8** pauses + retention (operational)
-8. **#10** @KoolQueueProducer cleanup
-9. **#11** MySQL support (only if there's actual demand)
+1. **#4** reaper (turns multi-instance from "works" into "production-safe")
+2. **#5** claim atomicity (closes a real correctness gap)
+3. **#13** jobRefence lateinit fix (low cost, removes a footgun)
+4. **#6** retries with backoff (visible user value)
+5. **#12** per-queue pollers (only if you hit starvation in real use)
+6. **#7 + #8** pauses + retention (operational)
+7. **#10** @KoolQueueProducer cleanup
+8. **#11** MySQL support (only if there's actual demand)

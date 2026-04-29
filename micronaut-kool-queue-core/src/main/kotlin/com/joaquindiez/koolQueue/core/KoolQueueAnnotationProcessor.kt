@@ -36,62 +36,80 @@ class KoolQueueAnnotationProcessor(
   private val logger: Logger = LoggerFactory.getLogger(KoolQueueAnnotationProcessor::class.java)
 
   override fun onApplicationEvent(event: StartupEvent) {
-    beanContext.getAllBeanDefinitions()
-      .forEach { beanDefinition ->
-        try {
-          val bean = beanContext.getBean(beanDefinition.beanType)
+    beanContext.getAllBeanDefinitions().forEach { beanDefinition ->
+      processBean(beanDefinition.beanType)
+    }
+  }
 
-          // Safely get declared methods, handling NoClassDefFoundError for missing dependencies
-          val methods = try {
-            beanDefinition.beanType.declaredMethods
-          } catch (e: NoClassDefFoundError) {
-            logger.debug("Skipping bean ${beanDefinition.beanType.simpleName} due to missing dependencies: ${e.message}")
-            return@forEach
-          }
+  private fun processBean(beanType: Class<*>) {
+    // Step 1: Cheap reflection — does this class declare any @KoolQueueTask method?
+    //
+    // We iterate declaredMethods on every bean in the context, including beans owned by
+    // other modules whose classes can fail to load entirely (NoClassDefFoundError when
+    // signatures reference optional deps not on the classpath). Those failures are NOT
+    // our problem, so they stay at DEBUG. This is a pre-filter — we don't even ask for
+    // the bean instance unless there's a task method to register.
+    val taskMethods = try {
+      beanType.declaredMethods.filter { it.isAnnotationPresent(KoolQueueTask::class.java) }
+    } catch (e: Throwable) {
+      logger.debug("Cannot reflect on {}, skipping: {}", beanType.name, e.message)
+      return
+    }
 
-          methods
-            .filter { it.isAnnotationPresent(KoolQueueTask::class.java) }
-            .forEach { method ->
-              val annotation = method.getAnnotation(KoolQueueTask::class.java)
-              val taskName = annotation.name.ifEmpty {
-                "${beanDefinition.beanType.simpleName}.${method.name}"
-              }
+    if (taskMethods.isEmpty()) return
 
-              // Check if it's a suspend function
-              val isSuspend = method.kotlinFunction?.isSuspend == true
+    // Step 2: This bean carries @KoolQueueTask methods, so any failure from here on is
+    // a real problem the user needs to know about — silent skipping previously made
+    // bean-wiring bugs invisible (the worker simply never ran, with no log to explain it).
+    val bean = try {
+      beanContext.getBean(beanType)
+    } catch (e: Throwable) {
+      logger.error(
+        "Failed to obtain bean {} which declares {} @KoolQueueTask method(s); these tasks will NOT be scheduled",
+        beanType.name, taskMethods.size, e
+      )
+      return
+    }
 
-              scheduler.registerTask(
-                name = taskName,
-                task = {
-                  try {
-                    if (isSuspend) {
-                      // For suspend functions, we need specific reflection
-                      val result = method.invoke(bean)
-                      if (result is kotlin.coroutines.Continuation<*>) {
-                        // It's a suspend function
-                        suspendCoroutine<Unit> { cont: kotlin.coroutines.Continuation<Unit> ->
-                          method.invoke(bean, cont)
-                        }
-                      }
-                    } else {
-                      // Normal function
-                      method.invoke(bean)
-                    }
-                  } catch (e: Exception) {
-                    logger.error("Error executing annotated task $taskName", e)
-                    throw e
-                  }
-                },
-                interval = Duration.parse(annotation.interval),
-                initialDelay = Duration.parse(annotation.initialDelay),
-                maxConcurrency = annotation.maxConcurrency
-              )
-
-              logger.info("Auto-registered kool queue task: $taskName")
-            }
-        } catch (e: Exception) {
-          logger.debug("Error processing bean ${beanDefinition.beanType.simpleName}", e)
-        }
+    taskMethods.forEach { method ->
+      try {
+        registerTaskMethod(bean, beanType, method)
+      } catch (e: Throwable) {
+        logger.error("Failed to register @KoolQueueTask {}.{}", beanType.simpleName, method.name, e)
       }
+    }
+  }
+
+  private fun registerTaskMethod(bean: Any, beanType: Class<*>, method: java.lang.reflect.Method) {
+    val annotation = method.getAnnotation(KoolQueueTask::class.java)
+    val taskName = annotation.name.ifEmpty { "${beanType.simpleName}.${method.name}" }
+
+    val isSuspend = method.kotlinFunction?.isSuspend == true
+
+    scheduler.registerTask(
+      name = taskName,
+      task = {
+        try {
+          if (isSuspend) {
+            val result = method.invoke(bean)
+            if (result is kotlin.coroutines.Continuation<*>) {
+              suspendCoroutine<Unit> { cont: kotlin.coroutines.Continuation<Unit> ->
+                method.invoke(bean, cont)
+              }
+            }
+          } else {
+            method.invoke(bean)
+          }
+        } catch (e: Exception) {
+          logger.error("Error executing annotated task $taskName", e)
+          throw e
+        }
+      },
+      interval = Duration.parse(annotation.interval),
+      initialDelay = Duration.parse(annotation.initialDelay),
+      maxConcurrency = annotation.maxConcurrency
+    )
+
+    logger.info("Auto-registered kool queue task: $taskName")
   }
 }

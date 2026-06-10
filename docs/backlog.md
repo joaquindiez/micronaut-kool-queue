@@ -59,6 +59,13 @@ with their commit hashes for traceability.
   after it returns. Verified at runtime: two instances, 60-job burst, each
   processed exactly once, zero duplicate-claim errors.
 
+- **#13 — `jobRefence` lateinit in `ApplicationJob`** · `cc8dd4b`
+  `protected lateinit var jobRefence` was per-call producer state on a
+  `@Singleton` job bean: concurrent producers clobbered it, and a worker on a
+  process that never produced could dereference it uninitialized. Removed the
+  field; `processLater` now returns the producer's `JobReference` directly.
+  Verified at runtime.
+
 ---
 
 ## Pending — features
@@ -100,15 +107,6 @@ with their commit hashes for traceability.
   `GET_LOCK` for the initializer, UUID as `BINARY(16)`, escape `key`/`value`
   reserved words) or update the README to say PostgreSQL-only.
 
-- **#13 — `jobRefence` lateinit in `ApplicationJob`**
-  Pre-existing bug surfaced during #2 testing: `protected lateinit var jobRefence`
-  is only initialized on the producer side (inside `processLater`). When a
-  worker invokes `processInternal()` on the same `@Singleton` bean in a process
-  that never produced for that class, dereferencing `jobRefence` throws
-  `UninitializedPropertyAccessException`. Fix: either nullable
-  (`var jobRefence: JobReference? = null`), or remove it from bean state
-  entirely and only return it as the value of `processLater` (it already does).
-
 ---
 
 ## Suggested order for next sessions
@@ -116,9 +114,8 @@ with their commit hashes for traceability.
 The order optimizes for "make multi-machine actually trustworthy" first,
 then features, then structural cleanup:
 
-1. **#13** jobRefence lateinit fix (low cost, removes a footgun)
-2. **#6** retries with backoff (visible user value)
-3. **#12** per-queue pollers (only if you hit starvation in real use)
-4. **#7 + #8** pauses + retention (operational)
-5. **#10** @KoolQueueProducer cleanup
-6. **#11** MySQL support (only if there's actual demand)
+1. **#6** retries with backoff (visible user value)
+2. **#12** per-queue pollers (only if you hit starvation in real use)
+3. **#7 + #8** pauses + retention (operational)
+4. **#10** @KoolQueueProducer cleanup
+5. **#11** MySQL support (only if there's actual demand)

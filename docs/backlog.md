@@ -41,6 +41,15 @@ with their commit hashes for traceability.
   `@KoolQueueTask` every 30s. Verified at runtime with the synthetic-zombie
   scenario. Threshold floor documented; sample raised from 10s to 60s.
 
+- **#14 — Startup ordering race: tasks registered before schema existed** · `5854f41`
+  On a fresh DB the app booted with zero workers: `KoolQueueAnnotationProcessor`
+  ran on `StartupEvent` (context) and registered tasks — each synchronously
+  writing a process row — before `KoolQueueInitializer` (then on the later
+  `ServerStartupEvent`) created the schema, so all tasks failed with
+  `relation ... does not exist`. Both now listen to `StartupEvent` with the
+  initializer at `HIGHEST_PRECEDENCE`, so the schema is always created first.
+  Verified at runtime against an empty DB.
+
 ---
 
 ## Pending — multi-instance & robustness
@@ -51,20 +60,6 @@ with their commit hashes for traceability.
   in `KoolQueueScheduledJob.checkPendingTasks`, leaving a microscopic window
   where the lock is released before the move completes. Wrap the three calls
   in a single `@Transactional` so SKIP LOCKED actually protects.
-
-- **#14 — Startup ordering race: tasks register before schema exists** *(breaks first deploy on empty DB)*
-  On a **fresh/empty database**, `KoolQueueAnnotationProcessor` registers the
-  `@KoolQueueTask` methods (and the scheduler's thread factory immediately runs
-  `registerCurrentProcess`) *before* `KoolQueueInitializer.onStartup` creates the
-  schema. All three tasks (`checkReadyTasks`, `checkScheduledTasks`,
-  `reapDeadWorkers`) fail with `relation "kool_queue.kool_queue_processes" does
-  not exist`, and the app boots with **zero workers**. Masked on every
-  subsequent boot because the tables already exist. Observed during #4 testing:
-  processor at `T+0.470`, initializer at `T+0.726`. Fix: make the initializer run
-  before the annotation processor (ordering/priority on the startup listeners, or
-  have the processor depend on the initializer / lazily register on first DB
-  availability). The processor already pre-filters unrelated beans, so the fix is
-  about *ordering*, not error handling.
 
 ## Pending — features
 
@@ -121,11 +116,10 @@ with their commit hashes for traceability.
 The order optimizes for "make multi-machine actually trustworthy" first,
 then features, then structural cleanup:
 
-1. **#14** startup ordering race (first deploy on an empty DB silently has no workers)
-2. **#5** claim atomicity (closes a real correctness gap)
-3. **#13** jobRefence lateinit fix (low cost, removes a footgun)
-4. **#6** retries with backoff (visible user value)
-5. **#12** per-queue pollers (only if you hit starvation in real use)
-6. **#7 + #8** pauses + retention (operational)
-7. **#10** @KoolQueueProducer cleanup
-8. **#11** MySQL support (only if there's actual demand)
+1. **#5** claim atomicity (closes a real correctness gap)
+2. **#13** jobRefence lateinit fix (low cost, removes a footgun)
+3. **#6** retries with backoff (visible user value)
+4. **#12** per-queue pollers (only if you hit starvation in real use)
+5. **#7 + #8** pauses + retention (operational)
+6. **#10** @KoolQueueProducer cleanup
+7. **#11** MySQL support (only if there's actual demand)

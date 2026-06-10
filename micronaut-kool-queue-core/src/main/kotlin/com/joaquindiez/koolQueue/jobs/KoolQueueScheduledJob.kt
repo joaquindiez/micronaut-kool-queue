@@ -20,9 +20,7 @@ import com.joaquindiez.koolQueue.core.KoolQueueScheduler
 import com.joaquindiez.koolQueue.core.KoolQueueTask
 
 import com.joaquindiez.koolQueue.core.RegisteredTask
-import com.joaquindiez.koolQueue.domain.KoolQueueClaimedExecutions
 import com.joaquindiez.koolQueue.domain.KoolQueueJobs
-import com.joaquindiez.koolQueue.repository.KoolQueueClaimedExecutionsRepository
 import io.micronaut.context.BeanContext
 import io.micronaut.json.JsonMapper
 import jakarta.inject.Inject
@@ -40,7 +38,6 @@ import java.io.ByteArrayInputStream
 class KoolQueueScheduledJob(
   private val taskService: KoolQueueJobsService,
   private val readyExecutionService: KoolQueueReadyExecutionService,
-  private val claimedExecutionsRepository: KoolQueueClaimedExecutionsRepository,
   private val jsonMapper: JsonMapper,
   private val applicationContext: ApplicationContext,  // ✅ Added to verify shutdown
   private val schedulerConfig: KoolQueueSchedulerConfig,
@@ -137,15 +134,8 @@ class KoolQueueScheduledJob(
       return
     }
 
-    //01. Get Jobs Ready to Execute — filter by configured queues if any
     val configuredQueues = schedulerConfig.queues
-    val readyExecuteJobList = if (configuredQueues.isEmpty()) {
-      readyExecutionService.pollJobsForExecution(limit = 1)
-    } else {
-      readyExecutionService.pollJobsForExecutionByQueues(configuredQueues, limit = 1)
-    }
     val queueLabel: String = if (configuredQueues.isEmpty()) "ALL" else configuredQueues.toString()
-    logger.debug("Check next Jobs to Run pending jobs to Run ${readyExecuteJobList.size} (queues=$queueLabel)")
 
     // Resolve our own kool_queue_processes.id once per poll. The scheduler
     // populates it lazily on the first scheduled tick (inside the executor's
@@ -158,7 +148,14 @@ class KoolQueueScheduledJob(
     }
     val claimingProcessId = workerProcessId ?: 0L
 
-    for (jobId in readyExecuteJobList) {
+    //01. Claim ready jobs atomically: poll (FOR UPDATE SKIP LOCKED) + insert
+    // into claimed_executions + delete from ready, all in ONE transaction so
+    // the lock is held until commit and a concurrent worker cannot re-poll the
+    // same row. Jobs are RUN below, after the claim transaction has committed.
+    val claimedJobIds = readyExecutionService.claimReadyJobs(configuredQueues, claimingProcessId, limit = 1)
+    logger.debug("Claimed ${claimedJobIds.size} job(s) to run (queues=$queueLabel)")
+
+    for (jobId in claimedJobIds) {
       // ✅ CHECK: State before processing each job
       if (!applicationContext.isRunning || !isDatabaseAvailable()) {
         logger.debug("Application/Database shutting down - stopping job processing")
@@ -166,16 +163,13 @@ class KoolQueueScheduledJob(
       }
 
       val job = taskService.findById(jobId)
-      if ( job != null ) {
-        //02. Insert in claimed_executions and delete from ready executions
-        claimedExecutionsRepository.save(KoolQueueClaimedExecutions(jobId = jobId, processId = claimingProcessId))
-        readyExecutionService.removeFromReady(jobId)
-
+      if (job != null) {
         processJobTaskSafely(job)
-      }else{
-        logger.warn("Job not found id=$jobId")
+      } else {
+        // Should not happen: the job was just claimed and removed from ready,
+        // and ready_executions has an FK to jobs. Log defensively.
+        logger.warn("Claimed job not found id=$jobId (already removed from ready)")
       }
-
     }
   }
 

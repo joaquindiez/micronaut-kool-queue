@@ -74,14 +74,20 @@ with their commit hashes for traceability.
   per-call `processLater(queue=)` > `override val queue` > annotation > default.
   Legacy form still works. Sample + README migrated. Verified at runtime.
 
+- **#6 — Retries with exponential backoff** · `b7777c0`
+  Failures went straight to `failed_executions` with no retry. Added an
+  `attempts` column; `finishOnErrorTask` now increments it, releases the claim
+  and re-enqueues as a scheduled execution at `now + base * 2^priorAttempts`
+  (capped) until the budget runs out, then dead-letters. Config:
+  `max-attempts` / `retry-backoff-base-seconds` / `retry-backoff-max-seconds`,
+  with a per-job `@KoolQueueJob(maxAttempts = N)` override. Reuses the existing
+  scheduled sweep — no `next_retry_at` column needed. Verified at runtime
+  (flaky-recovers and always-fails-then-dead-letters). See #16 (migration caveat:
+  the new column only lands on a fresh DB).
+
 ---
 
 ## Pending — features
-
-- **#6 — Retries with exponential backoff**
-  A `Result.failure` goes straight to `failed_executions` with no retry. Add
-  `attempts` + `next_retry_at` columns, configurable max attempts and backoff
-  policy in `finishOnErrorTask`.
 
 - **#7 — Operative `kool_queue_pauses`**
   The pauses table is created but neither producer nor poller consults it.
@@ -101,6 +107,17 @@ with their commit hashes for traceability.
   fairness workaround is multi-process: one app instance per queue.
 
 ## Pending — structural / cleanup
+
+- **#16 — No schema migration path** *(surfaced by #6)*
+  `KoolQueueInitializer` only runs `dropAllTables()/createAllTables()` when
+  `!tablesExist()`, so once the tables exist no DDL change is ever applied.
+  When #6 added the `attempts` column, existing databases did not get it and
+  the job row mapper breaks (`column "attempts" does not exist`) until the
+  schema is dropped/recreated or the column is added manually. Need a real
+  migration story: either ship Liquibase/Flyway changelogs, or have the
+  initializer reconcile missing columns with idempotent `ALTER TABLE ... ADD
+  COLUMN IF NOT EXISTS`. Until then, any new column is a breaking change for
+  live deployments.
 
 - **#10 — `@KoolQueueProducer` cleanup**
   The `KoolQueueProducerInterceptor` only logs before/after. Either give the
@@ -122,7 +139,7 @@ with their commit hashes for traceability.
 The order optimizes for "make multi-machine actually trustworthy" first,
 then features, then structural cleanup:
 
-1. **#6** retries with backoff (visible user value)
+1. **#16** schema migration path (without it, every new column breaks live DBs)
 2. **#12** per-queue pollers (only if you hit starvation in real use)
 3. **#7 + #8** pauses + retention (operational)
 4. **#10** @KoolQueueProducer cleanup

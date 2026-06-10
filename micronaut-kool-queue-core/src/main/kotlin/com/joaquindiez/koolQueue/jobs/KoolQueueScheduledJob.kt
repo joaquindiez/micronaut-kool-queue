@@ -30,6 +30,7 @@ import jakarta.inject.Singleton
 import jakarta.persistence.EntityManagerFactory
 import com.joaquindiez.koolQueue.services.KoolQueueJobsService
 import com.joaquindiez.koolQueue.services.KoolQueueReadyExecutionService
+import com.joaquindiez.koolQueue.services.KoolQueueReaperService
 import io.micronaut.context.ApplicationContext
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
@@ -44,6 +45,7 @@ class KoolQueueScheduledJob(
   private val applicationContext: ApplicationContext,  // ✅ Added to verify shutdown
   private val schedulerConfig: KoolQueueSchedulerConfig,
   private val scheduler: KoolQueueScheduler,
+  private val reaperService: KoolQueueReaperService,
    ) {
 
   companion object {
@@ -51,12 +53,51 @@ class KoolQueueScheduledJob(
     // when looking up our own kool_queue_processes.id from the scheduler.
     const val SCHEDULED_TASK_NAME: String = "checkScheduledTasks"
     const val READY_TASK_NAME: String = "checkReadyTasks"
+    const val REAPER_TASK_NAME: String = "reapDeadWorkers"
+
+    // Bound on how many dead processes one reaper tick will handle, just to
+    // keep tail latency on the periodic task predictable if the table has
+    // accumulated a backlog.
+    private const val REAPER_MAX_PER_TICK: Int = 50
   }
 
   @Inject
   lateinit var beanContext: BeanContext
 
   private val logger = LoggerFactory.getLogger(javaClass)
+
+  /**
+   * Periodically reaps workers whose heartbeat has gone stale: any jobs
+   * they had claimed are moved back into ready_executions, and the dead
+   * process row is removed. Without this, a crashed worker leaves its
+   * claimed jobs stuck forever in `claimed_executions` and no one picks
+   * them up. Initial delay is intentionally larger than the heartbeat
+   * threshold so this worker's own freshly-registered process doesn't
+   * accidentally get reaped.
+   */
+  @KoolQueueTask(name = REAPER_TASK_NAME, interval = "30s", initialDelay = "60s", maxConcurrency = 1)
+  fun reapDeadWorkers() {
+    if (!applicationContext.isRunning || !isDatabaseAvailable()) return
+
+    val threshold = schedulerConfig.deadWorkerThresholdSeconds
+    var reaped = 0
+    var reEnqueued = 0
+
+    while (reaped < REAPER_MAX_PER_TICK) {
+      val result = try {
+        reaperService.reapOne(threshold)
+      } catch (e: Exception) {
+        handleShutdownAwareException(e, "reaper")
+        return
+      } ?: break
+      reaped++
+      reEnqueued += result.reEnqueuedJobs
+    }
+
+    if (reaped > 0) {
+      logger.info("Reaper: $reaped dead worker(s) reaped, $reEnqueued claimed job(s) re-enqueued")
+    }
+  }
 
   @KoolQueueTask(name = SCHEDULED_TASK_NAME, interval = "1s", initialDelay = "10s", maxConcurrency = 1)
   fun checkScheduledTasks(){

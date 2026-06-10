@@ -51,6 +51,20 @@ with their commit hashes for traceability.
   where the lock is released before the move completes. Wrap the three calls
   in a single `@Transactional` so SKIP LOCKED actually protects.
 
+- **#14 — Startup ordering race: tasks register before schema exists** *(breaks first deploy on empty DB)*
+  On a **fresh/empty database**, `KoolQueueAnnotationProcessor` registers the
+  `@KoolQueueTask` methods (and the scheduler's thread factory immediately runs
+  `registerCurrentProcess`) *before* `KoolQueueInitializer.onStartup` creates the
+  schema. All three tasks (`checkReadyTasks`, `checkScheduledTasks`,
+  `reapDeadWorkers`) fail with `relation "kool_queue.kool_queue_processes" does
+  not exist`, and the app boots with **zero workers**. Masked on every
+  subsequent boot because the tables already exist. Observed during #4 testing:
+  processor at `T+0.470`, initializer at `T+0.726`. Fix: make the initializer run
+  before the annotation processor (ordering/priority on the startup listeners, or
+  have the processor depend on the initializer / lazily register on first DB
+  availability). The processor already pre-filters unrelated beans, so the fix is
+  about *ordering*, not error handling.
+
 ## Pending — features
 
 - **#6 — Retries with exponential backoff**
@@ -106,6 +120,7 @@ with their commit hashes for traceability.
 The order optimizes for "make multi-machine actually trustworthy" first,
 then features, then structural cleanup:
 
+1. **#14** startup ordering race (first deploy on an empty DB silently has no workers)
 1. **#4** reaper (turns multi-instance from "works" into "production-safe")
 2. **#5** claim atomicity (closes a real correctness gap)
 3. **#13** jobRefence lateinit fix (low cost, removes a footgun)

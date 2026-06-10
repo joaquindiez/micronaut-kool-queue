@@ -190,6 +190,44 @@ open class KoolQueueClaimedExecutionsRepository(
   }
 
   /**
+   * Re-enqueues every job claimed by the given process back into
+   * `ready_executions`, copying queue_name and priority from the parent job.
+   * `ON CONFLICT (job_id) DO NOTHING` is a no-op if the job already happens
+   * to be in ready (extremely unlikely but cheap to guard against).
+   *
+   * Returns the number of rows actually moved.
+   */
+  @Transactional
+  open fun reEnqueueByProcessId(processId: Long): Int {
+    val sql = """
+      INSERT INTO ${tables.readyExecutions} (job_id, queue_name, priority)
+      SELECT ce.job_id, j.queue_name, j.priority
+      FROM ${tables.claimedExecutions} ce
+      JOIN ${tables.jobs} j ON j.id = ce.job_id
+      WHERE ce.process_id = ?
+      ON CONFLICT (job_id) DO NOTHING
+    """.trimIndent()
+
+    return jdbcTemplate.prepareStatement(sql) { ps ->
+      ps.setLong(1, processId)
+      ps.executeUpdate()
+    }
+  }
+
+  /**
+   * Deletes all claimed_executions rows for the given process.
+   * Returns the number of deleted rows.
+   */
+  @Transactional
+  open fun deleteByProcessId(processId: Long): Int {
+    val sql = "DELETE FROM ${tables.claimedExecutions} WHERE process_id = ?"
+    return jdbcTemplate.prepareStatement(sql) { ps ->
+      ps.setLong(1, processId)
+      ps.executeUpdate()
+    }
+  }
+
+  /**
    * Maps a ResultSet row to a KoolQueueJobs object
    */
   private fun mapRowToJob(rs: ResultSet): KoolQueueJobs {

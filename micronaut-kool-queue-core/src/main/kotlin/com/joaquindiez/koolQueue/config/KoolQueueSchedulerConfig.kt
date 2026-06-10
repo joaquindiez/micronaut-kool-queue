@@ -50,6 +50,19 @@ data class KoolQueueSchedulerConfig(
   var shutdownTimeoutSeconds: Long = 30,
 
   /**
+   * Seconds since a worker's last heartbeat before it is considered dead.
+   * Stale workers are reaped: any jobs they claimed are moved back to
+   * `ready_executions` and their process row is removed.
+   *
+   * Must comfortably exceed the slowest task's heartbeat gap. A task only
+   * refreshes its heartbeat once per its own interval, and the reaper itself
+   * runs every 30s, so a live worker's heartbeat age can legitimately reach
+   * ~30s. A threshold at or below that makes the reaper reap live process
+   * rows (including its own). Keep it well above 30s. Default is conservative.
+   */
+  var deadWorkerThresholdSeconds: Long = 60,
+
+  /**
    * Queues this worker will poll, in priority order.
    * Empty list (the default) polls all queues globally.
    *

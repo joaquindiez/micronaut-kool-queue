@@ -98,4 +98,42 @@ open class ProcessesRepository(
       ps.executeUpdate()
     }
   }
+
+  /**
+   * Returns the id of one process whose last heartbeat is older than the
+   * given cutoff, locked FOR UPDATE SKIP LOCKED so concurrent reapers don't
+   * pick the same row. The lock lives until the surrounding transaction
+   * commits, so the caller MUST be inside a @Transactional method.
+   *
+   * Returns null if no stale process is available to be reaped.
+   */
+  @Transactional
+  open fun findOneDeadProcessId(cutoff: Instant): Long? {
+    val sql = """
+            SELECT id
+            FROM ${tables.processes}
+            WHERE last_heartbeat_at < ?
+            ORDER BY last_heartbeat_at ASC
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+        """.trimIndent()
+
+    return jdbcTemplate.prepareStatement(sql) { ps ->
+      ps.setTimestamp(1, Timestamp.from(cutoff))
+      val rs = ps.executeQuery()
+      if (rs.next()) rs.getLong("id") else null
+    }
+  }
+
+  /**
+   * Deletes a process row. Returns the number of deleted rows.
+   */
+  @Transactional
+  open fun deleteProcess(processId: Long): Int {
+    val sql = "DELETE FROM ${tables.processes} WHERE id = ?"
+    return jdbcTemplate.prepareStatement(sql) { ps ->
+      ps.setLong(1, processId)
+      ps.executeUpdate()
+    }
+  }
 }

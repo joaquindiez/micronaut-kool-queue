@@ -6,6 +6,9 @@ micronaut:
       max-concurrent-tasks: 4
       shutdown-timeout-seconds: 30
       enable-management-endpoints: true
+      # Must stay comfortably above the slowest task's heartbeat gap (the
+      # reaper itself beats once per 30s), or live workers get self-reaped.
+      dead-worker-threshold-seconds: 60
       schema: kool_queue
       queues:
         - emails

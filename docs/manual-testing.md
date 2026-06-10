@@ -195,6 +195,96 @@ default behavior is unchanged.
 
 ---
 
+## Scenario D — reaper for orphaned claims
+
+**Goal:** prove that when a worker dies with jobs in `claimed_executions`,
+those jobs come back into `ready_executions` and the dead process row is
+cleaned up.
+
+The reaper task runs every 30s with a 60s `initialDelay`, and considers a
+worker dead after `deadWorkerThresholdSeconds = 60` (configurable).
+
+**Do not set the threshold near or below 30s.** Each task refreshes its
+heartbeat at most once per its own interval, and the slowest task is the
+reaper itself (30s). So a process row's heartbeat age can legitimately reach
+~30s while the worker is perfectly alive — a threshold ≤ ~30s makes the reaper
+reap live process rows (including its own). Keep it comfortably above 30s; the
+default 60 already accounts for this, so for the synthetic test below (whose
+zombie is 5 minutes stale) you don't need to lower it at all.
+
+### Steps — synthetic dead worker
+
+This is the controlled way: insert a fake "zombie" process row whose
+heartbeat is already old, plus a job that the zombie supposedly claimed.
+
+```sql
+SET search_path TO kool_queue, public;
+
+-- 1. Synthetic dead process — heartbeat 5 minutes in the past
+INSERT INTO kool_queue_processes (kind, name, pid, hostname, last_heartbeat_at)
+VALUES ('checkReadyTasks', 'zombie', 99999, 'zombie-host', now() - interval '5 minutes')
+RETURNING id;
+-- → say it returned id = 42
+
+-- 2. A job the zombie supposedly claimed
+INSERT INTO kool_queue_jobs (queue_name, class_name, arguments, active_job_id, scheduled_at)
+VALUES ('emails', 'com.freesoullabs.TestJobs', '"hello-from-the-grave"',
+        gen_random_uuid(), now())
+RETURNING id;
+-- → say it returned id = 99
+
+-- 3. Stale claim pointing to the zombie
+INSERT INTO kool_queue_claimed_executions (job_id, process_id) VALUES (99, 42);
+```
+
+Wait up to one reaper interval (30s by default). Expected log:
+```
+Reaper: 1 dead worker(s) reaped, 1 claimed job(s) re-enqueued
+```
+Followed shortly after by the regular worker picking the job up:
+```
+Procesando Test Jobs (queue=emails) -> hello-from-the-grave
+```
+
+Then verify:
+
+```sql
+-- Zombie is gone
+SELECT * FROM kool_queue_processes WHERE id = 42;          -- 0 rows
+-- Claim is gone
+SELECT * FROM kool_queue_claimed_executions WHERE job_id = 99;  -- 0 rows
+-- Job ran
+SELECT id, queue_name, finished_at FROM kool_queue_jobs WHERE id = 99;
+-- → finished_at IS NOT NULL
+```
+
+### Steps — real worker death (more realistic but messier)
+
+Bring up two sample instances on different ports:
+
+```bash
+MICRONAUT_SERVER_PORT=8080 ./gradlew :micronaut-kool-queue-sample:run &
+MICRONAUT_SERVER_PORT=8081 ./gradlew :micronaut-kool-queue-sample:run &
+```
+
+Saturate them so jobs are mid-flight (Thread.sleep keeps them busy):
+
+```bash
+for i in $(seq 1 30); do curl -s localhost:8080/task & done; wait
+```
+
+While jobs are in `claimed_executions`, kill one instance with `kill -9`
+(NOT a graceful shutdown — graceful shutdown would let jobs finish):
+
+```bash
+# find pid of the 8080 instance and kill -9
+```
+
+After `dead-worker-threshold-seconds` elapse, the surviving instance's
+reaper picks up the dead one's claims and re-enqueues them.
+
+---
+
 ## Scenario B — multiple instances against the same database
 
 **Goal:** prove `FOR UPDATE SKIP LOCKED` actually distributes work and the

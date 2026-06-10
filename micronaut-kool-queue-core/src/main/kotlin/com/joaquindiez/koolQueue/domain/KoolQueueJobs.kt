@@ -32,6 +32,7 @@ data class KoolQueueJobs(
   val activeJobId: UUID,
   var scheduledAt: Instant? = null,
   var finishedAt: Instant? = null,
+  var attempts: Int = 0,
   var concurrency_key: String? = null,
   var createdAt: LocalDateTime = LocalDateTime.now(),
   var updatedAt: LocalDateTime = LocalDateTime.now()

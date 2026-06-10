@@ -25,6 +25,8 @@ import java.time.LocalDateTime
 class TestController(
   val testJobs: TestJobs,
   val reportJobs: ReportJobs,
+  val flakyJob: FlakyJob,
+  val alwaysFailingJob: AlwaysFailingJob,
 ) {
 
   @Get
@@ -52,6 +54,22 @@ class TestController(
   @Get("/scheduled")
   fun addTestScheduled(): JobReference {
     val jobRef = testJobs.processLater("hello-scheduled", scheduledAt = LocalDateTime.now().plusMinutes(1))
+    println("Job enqueued: $jobRef")
+    return jobRef
+  }
+
+  @Get("/flaky")
+  fun addFlaky(): JobReference {
+    // Fails twice then succeeds — exercises retry + eventual success.
+    val jobRef = flakyJob.processLater("flaky-payload")
+    println("Job enqueued: $jobRef")
+    return jobRef
+  }
+
+  @Get("/always-fail")
+  fun addAlwaysFail(): JobReference {
+    // Always fails — exercises retry budget exhaustion + dead-letter.
+    val jobRef = alwaysFailingJob.processLater("doomed-payload")
     println("Job enqueued: $jobRef")
     return jobRef
   }

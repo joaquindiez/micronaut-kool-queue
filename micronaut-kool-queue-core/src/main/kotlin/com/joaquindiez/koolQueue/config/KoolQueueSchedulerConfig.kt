@@ -63,6 +63,25 @@ data class KoolQueueSchedulerConfig(
   var deadWorkerThresholdSeconds: Long = 60,
 
   /**
+   * Total number of attempts a job gets before it is moved to
+   * `failed_executions` (dead-lettered). 1 means no retry (fail on first
+   * error). A per-job `@KoolQueueJob(maxAttempts = N)` overrides this.
+   */
+  var maxAttempts: Int = 5,
+
+  /**
+   * Base delay (seconds) for the exponential retry backoff. The delay before
+   * retry number `n` (0-based) is `base * 2^n`, capped at
+   * [retryBackoffMaxSeconds]. With base=5: 5s, 10s, 20s, 40s, ...
+   */
+  var retryBackoffBaseSeconds: Long = 5,
+
+  /**
+   * Upper bound (seconds) on the exponential retry backoff delay.
+   */
+  var retryBackoffMaxSeconds: Long = 300,
+
+  /**
    * Queues this worker will poll, in priority order.
    * Empty list (the default) polls all queues globally.
    *

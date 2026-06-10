@@ -49,6 +49,22 @@ class JobsRepository (
     }
   }
 
+  /**
+   * Sets the attempt counter for a job (used by the retry flow).
+   */
+  fun updateAttempts(jobId: Long, attempts: Int): Int {
+    val sql = """
+            UPDATE ${tables.jobs}
+            SET attempts = ?
+            WHERE id = ?
+        """.trimIndent()
+    return jdbcTemplate.prepareStatement(sql) { statement ->
+      statement.setInt(1, attempts)
+      statement.setLong(2, jobId)
+      statement.executeUpdate()
+    }
+  }
+
 
   fun findAllJobsPending(page: Int = 0, size: Int = 20): List<KoolQueueJobs> {
     val offset = page * size
@@ -260,6 +276,7 @@ class JobsRepository (
       updatedAt = resultSet.getTimestamp("updated_at").toLocalDateTime(),
       finishedAt = finishedAt?.toInstant(),
       scheduledAt = scheduledAt?.toInstant(),
+      attempts = resultSet.getInt("attempts"),
       activeJobId = UUID.fromString(resultSet.getString("active_job_id"))
       // Map other fields as needed
     )

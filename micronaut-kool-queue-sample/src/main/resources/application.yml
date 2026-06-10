@@ -9,6 +9,10 @@ micronaut:
       # Must stay comfortably above the slowest task's heartbeat gap (the
       # reaper itself beats once per 30s), or live workers get self-reaped.
       dead-worker-threshold-seconds: 60
+      # Retry/backoff (small values here keep the manual retry test fast)
+      max-attempts: 5
+      retry-backoff-base-seconds: 1
+      retry-backoff-max-seconds: 10
       schema: kool_queue
       queues:
         - emails

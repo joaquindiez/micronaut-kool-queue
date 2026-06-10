@@ -185,6 +185,9 @@ class KoolQueueScheduledJob(
     val jobId = jobIdField.get(jobTask)
     val metadata = metadataField.get(jobTask) as String
 
+    // Per-job retry budget from @KoolQueueJob(maxAttempts=...); null = use global.
+    val maxAttemptsOverride = resolveMaxAttemptsOverride(className)
+
     try {
       val applicationJob = beanContext.getBean(Class.forName(className))
       val inputStream = ByteArrayInputStream(metadata.toByteArray())
@@ -210,7 +213,7 @@ class KoolQueueScheduledJob(
               logger.error("Job taskId=$jobId className=$className finished onError")
 
               safeUpdateJobStatus(jobTask, jobId.toString(), "failure") {
-                taskService.finishOnErrorTask(jobTask, it)
+                taskService.finishOnErrorTask(jobTask, it, maxAttemptsOverride)
               }
             }
           )
@@ -219,7 +222,7 @@ class KoolQueueScheduledJob(
           logger.error("Job taskId=$jobId className=$className UnExpected failure", ex)
 
           safeUpdateJobStatus(jobTask, jobId.toString(), "unexpected error") {
-            taskService.finishOnErrorTask(jobTask, ex)
+            taskService.finishOnErrorTask(jobTask, ex, maxAttemptsOverride)
           }
         }
 
@@ -227,7 +230,7 @@ class KoolQueueScheduledJob(
         logger.error("Job className=$className not valid taskId=$jobId")
 
         safeUpdateJobStatus(jobTask, jobId.toString(), "invalid job class") {
-          taskService.finishOnErrorTask(jobTask, Error("Job className=$className not valid taskId=$jobId") )
+          taskService.finishOnErrorTask(jobTask, Error("Job className=$className not valid taskId=$jobId"), maxAttemptsOverride)
         }
 
       }
@@ -240,10 +243,18 @@ class KoolQueueScheduledJob(
       logger.error("Error processing job taskId=$jobId className=$className", e)
 
       safeUpdateJobStatus(jobTask, jobId.toString(), "processing error") {
-        taskService.finishOnErrorTask(jobTask, e)
+        taskService.finishOnErrorTask(jobTask, e, maxAttemptsOverride)
       }
     }
   }
+
+  /** Per-job retry budget from `@KoolQueueJob(maxAttempts=...)`, or null to use the global default. */
+  private fun resolveMaxAttemptsOverride(className: String): Int? =
+    try {
+      Class.forName(className).getAnnotation(KoolQueueJob::class.java)?.maxAttempts?.takeIf { it >= 0 }
+    } catch (e: Throwable) {
+      null
+    }
 
   // ✅ SAFE METHOD: Only updates DB if available
   private fun safeUpdateJobStatus(jobTask: Any, jobId: String, operation: String, updateAction: () -> Unit) {

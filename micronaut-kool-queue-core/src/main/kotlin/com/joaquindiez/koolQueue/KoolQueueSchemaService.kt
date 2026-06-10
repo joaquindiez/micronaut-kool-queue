@@ -74,6 +74,7 @@ open class KoolQueueSchemaService(
                 active_job_id UUID NOT NULL UNIQUE,          -- Unique job ID
                 scheduled_at TIMESTAMP,                      -- NULL = execute now, timestamp = execute later
                 finished_at TIMESTAMP,                       -- NULL = pending, timestamp = completed
+                attempts INT NOT NULL DEFAULT 0,             -- times this job has been attempted (retries)
                 concurrency_key VARCHAR(255),                -- For concurrency controls
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

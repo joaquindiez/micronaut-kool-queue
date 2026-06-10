@@ -37,10 +37,14 @@ import jakarta.inject.Singleton
  *  2. an `override val queue` on the job class (use for dynamic/computed queues)
  *  3. this annotation's [queue]
  *  4. [ApplicationJob.DEFAULT_QUEUE]
+ *
+ * [maxAttempts] overrides the global `micronaut.scheduler.kool-queue.max-attempts`
+ * for this job class. Leave at the default (`-1`) to inherit the global value.
  */
 @Singleton
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.RUNTIME)
 annotation class KoolQueueJob(
-  val queue: String = ApplicationJob.DEFAULT_QUEUE
+  val queue: String = ApplicationJob.DEFAULT_QUEUE,
+  val maxAttempts: Int = -1
 )

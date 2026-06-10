@@ -66,6 +66,14 @@ with their commit hashes for traceability.
   field; `processLater` now returns the producer's `JobReference` directly.
   Verified at runtime.
 
+- **#15 — `@KoolQueueJob` declarative job/queue annotation** · `64dbef6`
+  Jobs needed `@Singleton` (DI) plus `override val queue` (routing). New
+  `@KoolQueueJob(queue = "...")` is meta-annotated with `@Singleton` (Micronaut
+  stereotype), so it registers the bean and declares the default queue in one
+  place. `ApplicationJob.queue` resolves to the annotation; precedence is
+  per-call `processLater(queue=)` > `override val queue` > annotation > default.
+  Legacy form still works. Sample + README migrated. Verified at runtime.
+
 ---
 
 ## Pending — features

@@ -34,15 +34,16 @@ with their commit hashes for traceability.
   for a registered task; `KoolQueueScheduledJob` looks up its own task name
   and stamps that id on every claim instead of hardcoding 0.
 
+- **#4 — Reaper for orphaned claimed jobs** · `82306ee`
+  `KoolQueueReaperService.reapOne` reaps one stale process per transaction
+  (`FOR UPDATE SKIP LOCKED`), re-enqueues its claims into `ready_executions`,
+  and deletes the claims + process row. Driven by the `reapDeadWorkers`
+  `@KoolQueueTask` every 30s. Verified at runtime with the synthetic-zombie
+  scenario. Threshold floor documented; sample raised from 10s to 60s.
+
 ---
 
 ## Pending — multi-instance & robustness
-
-- **#4 — Reaper for orphaned claimed jobs** *(critical for multi-machine)*
-  If a worker dies with jobs in `claimed_executions`, they sit there forever.
-  Periodic task that detects processes with `last_heartbeat_at < now() - threshold`,
-  re-enqueues their claims into `ready_executions`, and removes the dead
-  process row. Depends on #3.
 
 - **#5 — Claim atomicity**
   `pollJobsForExecution` (with `FOR UPDATE SKIP LOCKED`) and the subsequent
@@ -121,7 +122,6 @@ The order optimizes for "make multi-machine actually trustworthy" first,
 then features, then structural cleanup:
 
 1. **#14** startup ordering race (first deploy on an empty DB silently has no workers)
-1. **#4** reaper (turns multi-instance from "works" into "production-safe")
 2. **#5** claim atomicity (closes a real correctness gap)
 3. **#13** jobRefence lateinit fix (low cost, removes a footgun)
 4. **#6** retries with backoff (visible user value)

@@ -18,6 +18,7 @@ package com.joaquindiez.koolQueue.core
 import io.micronaut.context.BeanContext
 import io.micronaut.context.event.ApplicationEventListener
 import io.micronaut.context.event.StartupEvent
+import io.micronaut.core.order.Ordered
 import jakarta.inject.Singleton
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -31,7 +32,7 @@ import kotlinx.coroutines.*
 class KoolQueueAnnotationProcessor(
   private val scheduler: KoolQueueScheduler,
   private val beanContext: BeanContext
-) : ApplicationEventListener<StartupEvent> {
+) : ApplicationEventListener<StartupEvent>, Ordered {
 
   private val logger: Logger = LoggerFactory.getLogger(KoolQueueAnnotationProcessor::class.java)
 
@@ -40,6 +41,12 @@ class KoolQueueAnnotationProcessor(
       processBean(beanDefinition.beanType)
     }
   }
+
+  // Must run AFTER KoolQueueInitializer (HIGHEST_PRECEDENCE) on this same
+  // StartupEvent: registering a task synchronously writes a process row, which
+  // requires the schema to already exist. Default order (0) sorts after the
+  // initializer; stated explicitly so the ordering contract is not accidental.
+  override fun getOrder(): Int = 0
 
   private fun processBean(beanType: Class<*>) {
     // Step 1: Cheap reflection — does this class declare any @KoolQueueTask method?

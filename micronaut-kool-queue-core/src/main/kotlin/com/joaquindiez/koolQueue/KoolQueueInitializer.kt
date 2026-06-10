@@ -15,29 +15,40 @@
  */
 package com.joaquindiez.koolQueue
 
-import io.micronaut.runtime.event.annotation.EventListener
-import io.micronaut.runtime.server.event.ServerStartupEvent
+import io.micronaut.context.event.ApplicationEventListener
+import io.micronaut.context.event.StartupEvent
+import io.micronaut.core.order.Ordered
 import io.micronaut.transaction.annotation.Transactional
 import jakarta.inject.Singleton
 import jakarta.persistence.EntityManager
 
 
 /**
- * Service for initialization at application startup
+ * Service for initialization at application startup.
+ *
+ * Listens to [StartupEvent] (context started) — the same event the
+ * [com.joaquindiez.koolQueue.core.KoolQueueAnnotationProcessor] uses to
+ * register `@KoolQueueTask` methods. The processor's registration writes a
+ * process row synchronously (via the scheduler's thread factory), so the
+ * schema MUST exist first. We run at [Ordered.HIGHEST_PRECEDENCE] so this
+ * initializer is invoked before the processor; otherwise, on a fresh database,
+ * every task fails to register and the app boots with no workers.
  */
 @Singleton
 open class KoolQueueInitializer(
   private val schemaService: KoolQueueSchemaService,
   private val entityManager: EntityManager
-) {
+) : ApplicationEventListener<StartupEvent>, Ordered {
 
   private val logger = org.slf4j.LoggerFactory.getLogger(javaClass)
 
 
-  @EventListener
-  fun onStartup(event: ServerStartupEvent) {
+  override fun onApplicationEvent(event: StartupEvent) {
     init()
   }
+
+  // Run before the annotation processor (default order 0) on the same event.
+  override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE
 
   /**
    * Serialized across instances via a Postgres advisory lock so that two pods

@@ -39,10 +39,14 @@ abstract class ApplicationJob<T : Any> {
 
   /**
    * Default queue used when processLater is invoked without an explicit queue.
-   * Override in subclasses to route a job class to a dedicated queue:
+   *
+   * Resolves to the [KoolQueueJob] annotation's `queue` if present, else
+   * [DEFAULT_QUEUE]. Override in subclasses only for dynamic/computed queues
+   * (an `override val` wins over the annotation):
    * `override val queue: String = "emails"`
    */
-  open val queue: String = DEFAULT_QUEUE
+  open val queue: String
+    get() = javaClass.getAnnotation(KoolQueueJob::class.java)?.queue ?: DEFAULT_QUEUE
 
   abstract fun process(data: T): Result<Boolean>
 

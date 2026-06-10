@@ -17,16 +17,14 @@
 
 
 import com.joaquindiez.koolQueue.jobs.ApplicationJob
-import jakarta.inject.Singleton
+import com.joaquindiez.koolQueue.jobs.KoolQueueJob
 import org.slf4j.LoggerFactory
 
 
-@Singleton
+@KoolQueueJob(queue = "emails")
 class TestJobs : ApplicationJob<String>() {
 
   private val logger = LoggerFactory.getLogger(javaClass)
-
-  override val queue: String = "emails"
 
   override fun process(data: String): Result<Boolean> {
     logger.info("Procesando Test Jobs (queue=$queue) -> $data")
@@ -36,12 +34,10 @@ class TestJobs : ApplicationJob<String>() {
 
 }
 
-@Singleton
+@KoolQueueJob(queue = "reports")
 class ReportJobs : ApplicationJob<String>() {
 
   private val logger = LoggerFactory.getLogger(javaClass)
-
-  override val queue: String = "reports"
 
   override fun process(data: String): Result<Boolean> {
     logger.info("Procesando Report (queue=$queue) -> $data")

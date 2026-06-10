@@ -37,8 +37,6 @@ abstract class ApplicationJob<T : Any> {
   // ✅ Initialized after dependency injection
   private lateinit var cachedDataType: Class<T>
 
-  protected lateinit var jobRefence: JobReference
-
   /**
    * Default queue used when processLater is invoked without an explicit queue.
    * Override in subclasses to route a job class to a dedicated queue:
@@ -136,8 +134,11 @@ abstract class ApplicationJob<T : Any> {
       val effectiveQueue = queue ?: this.queue
 
       logger.debug("Enqueueing job of type: ${dataType.simpleName} on queue '$effectiveQueue'")
-      this.jobRefence = basicKoolQueueMessageProducer.send(data, jobType, effectiveQueue, scheduledAt)
-      return this.jobRefence
+      // The reference is returned to the caller, never stored on this bean:
+      // these singletons are shared across producer calls (and reused by the
+      // worker), so per-call state here would race and could be dereferenced
+      // uninitialized on a worker that never produced for this class.
+      return basicKoolQueueMessageProducer.send(data, jobType, effectiveQueue, scheduledAt)
     } catch (e: Exception) {
       logger.error("Failed to enqueue job", e)
       throw e

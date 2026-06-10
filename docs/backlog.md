@@ -50,16 +50,16 @@ with their commit hashes for traceability.
   initializer at `HIGHEST_PRECEDENCE`, so the schema is always created first.
   Verified at runtime against an empty DB.
 
+- **#5 — Claim atomicity** · `19f8668`
+  The poll (`FOR UPDATE SKIP LOCKED`), the `claimed_executions` insert and the
+  `ready_executions` delete ran in three separate transactions, so the row lock
+  was released the instant the poll returned — a window for a second worker to
+  re-poll and double-claim. New `KoolQueueReadyExecutionService.claimReadyJobs`
+  does all three in one `@Transactional` (lock held until commit); jobs run only
+  after it returns. Verified at runtime: two instances, 60-job burst, each
+  processed exactly once, zero duplicate-claim errors.
+
 ---
-
-## Pending — multi-instance & robustness
-
-- **#5 — Claim atomicity**
-  `pollJobsForExecution` (with `FOR UPDATE SKIP LOCKED`) and the subsequent
-  `claimedExecutions.save` + `removeFromReady` run in **separate transactions**
-  in `KoolQueueScheduledJob.checkPendingTasks`, leaving a microscopic window
-  where the lock is released before the move completes. Wrap the three calls
-  in a single `@Transactional` so SKIP LOCKED actually protects.
 
 ## Pending — features
 
@@ -116,10 +116,9 @@ with their commit hashes for traceability.
 The order optimizes for "make multi-machine actually trustworthy" first,
 then features, then structural cleanup:
 
-1. **#5** claim atomicity (closes a real correctness gap)
-2. **#13** jobRefence lateinit fix (low cost, removes a footgun)
-3. **#6** retries with backoff (visible user value)
-4. **#12** per-queue pollers (only if you hit starvation in real use)
-5. **#7 + #8** pauses + retention (operational)
-6. **#10** @KoolQueueProducer cleanup
-7. **#11** MySQL support (only if there's actual demand)
+1. **#13** jobRefence lateinit fix (low cost, removes a footgun)
+2. **#6** retries with backoff (visible user value)
+3. **#12** per-queue pollers (only if you hit starvation in real use)
+4. **#7 + #8** pauses + retention (operational)
+5. **#10** @KoolQueueProducer cleanup
+6. **#11** MySQL support (only if there's actual demand)

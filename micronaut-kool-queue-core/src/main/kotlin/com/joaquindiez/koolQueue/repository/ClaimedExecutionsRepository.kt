@@ -15,6 +15,7 @@
  */
 package com.joaquindiez.koolQueue.repository
 
+import com.joaquindiez.koolQueue.config.KoolQueueTableNames
 import com.joaquindiez.koolQueue.domain.KoolQueueClaimedExecutions
 import com.joaquindiez.koolQueue.domain.KoolQueueJobs
 import io.micronaut.data.jdbc.runtime.JdbcOperations
@@ -26,7 +27,8 @@ import java.sql.Timestamp
 
 @Singleton
 open class KoolQueueClaimedExecutionsRepository(
-  private val jdbcTemplate: JdbcOperations
+  private val jdbcTemplate: JdbcOperations,
+  private val tables: KoolQueueTableNames
 ) {
   /**
    * RowMapper to convert ResultSet to KoolQueueClaimedExecutions
@@ -46,7 +48,7 @@ open class KoolQueueClaimedExecutionsRepository(
   @Transactional
   open fun save(claimedExecution: KoolQueueClaimedExecutions): KoolQueueClaimedExecutions {
     val sql = """
-            INSERT INTO kool_queue_claimed_executions (job_id, process_id, created_at)
+            INSERT INTO ${tables.claimedExecutions} (job_id, process_id, created_at)
             VALUES (?, ?, ?)
             RETURNING id, job_id, process_id, created_at
         """.trimIndent()
@@ -71,7 +73,7 @@ open class KoolQueueClaimedExecutionsRepository(
    */
   @Transactional
   open fun deleteByJobId(jobId: Long): Int {
-    val sql = "DELETE FROM kool_queue_claimed_executions WHERE job_id = ?"
+    val sql = "DELETE FROM ${tables.claimedExecutions} WHERE job_id = ?"
 
     return jdbcTemplate.prepareStatement(sql) { ps ->
       ps.setLong(1, jobId)
@@ -83,7 +85,7 @@ open class KoolQueueClaimedExecutionsRepository(
    * Checks if a claimed execution exists for the given job_id
    */
   fun existsByJobId(jobId: Long): Boolean {
-    val sql = "SELECT 1 FROM kool_queue_claimed_executions WHERE job_id = ? LIMIT 1"
+    val sql = "SELECT 1 FROM ${tables.claimedExecutions} WHERE job_id = ? LIMIT 1"
 
     return jdbcTemplate.prepareStatement(sql) { ps ->
       ps.setLong(1, jobId)
@@ -99,7 +101,7 @@ open class KoolQueueClaimedExecutionsRepository(
    */
   @Transactional
   open fun findAll(): List<KoolQueueClaimedExecutions> {
-    val sql = "SELECT * FROM kool_queue_claimed_executions"
+    val sql = "SELECT * FROM ${tables.claimedExecutions}"
 
     return jdbcTemplate.prepareStatement(sql) { ps ->
       val resultSet = ps.executeQuery()
@@ -122,8 +124,8 @@ open class KoolQueueClaimedExecutionsRepository(
   open fun findAllClaimedJobs(): List<KoolQueueJobs> {
     val sql = """
       SELECT j.*
-      FROM kool_queue_jobs j
-      INNER JOIN kool_queue_claimed_executions ce ON j.id = ce.job_id
+      FROM ${tables.jobs} j
+      INNER JOIN ${tables.claimedExecutions} ce ON j.id = ce.job_id
     """.trimIndent()
 
     return jdbcTemplate.prepareStatement(sql) { ps ->
@@ -146,8 +148,8 @@ open class KoolQueueClaimedExecutionsRepository(
     val offset = page * size
     val sql = """
       SELECT j.*
-      FROM kool_queue_jobs j
-      INNER JOIN kool_queue_claimed_executions ce ON j.id = ce.job_id
+      FROM ${tables.jobs} j
+      INNER JOIN ${tables.claimedExecutions} ce ON j.id = ce.job_id
       ORDER BY ce.created_at DESC
       LIMIT ? OFFSET ?
     """.trimIndent()
@@ -174,7 +176,7 @@ open class KoolQueueClaimedExecutionsRepository(
   open fun countAllClaimedJobs(): Long {
     val sql = """
       SELECT COUNT(*)
-      FROM kool_queue_claimed_executions
+      FROM ${tables.claimedExecutions}
     """.trimIndent()
 
     return jdbcTemplate.prepareStatement(sql) { ps ->
@@ -184,6 +186,44 @@ open class KoolQueueClaimedExecutionsRepository(
       } else {
         0L
       }
+    }
+  }
+
+  /**
+   * Re-enqueues every job claimed by the given process back into
+   * `ready_executions`, copying queue_name and priority from the parent job.
+   * `ON CONFLICT (job_id) DO NOTHING` is a no-op if the job already happens
+   * to be in ready (extremely unlikely but cheap to guard against).
+   *
+   * Returns the number of rows actually moved.
+   */
+  @Transactional
+  open fun reEnqueueByProcessId(processId: Long): Int {
+    val sql = """
+      INSERT INTO ${tables.readyExecutions} (job_id, queue_name, priority)
+      SELECT ce.job_id, j.queue_name, j.priority
+      FROM ${tables.claimedExecutions} ce
+      JOIN ${tables.jobs} j ON j.id = ce.job_id
+      WHERE ce.process_id = ?
+      ON CONFLICT (job_id) DO NOTHING
+    """.trimIndent()
+
+    return jdbcTemplate.prepareStatement(sql) { ps ->
+      ps.setLong(1, processId)
+      ps.executeUpdate()
+    }
+  }
+
+  /**
+   * Deletes all claimed_executions rows for the given process.
+   * Returns the number of deleted rows.
+   */
+  @Transactional
+  open fun deleteByProcessId(processId: Long): Int {
+    val sql = "DELETE FROM ${tables.claimedExecutions} WHERE process_id = ?"
+    return jdbcTemplate.prepareStatement(sql) { ps ->
+      ps.setLong(1, processId)
+      ps.executeUpdate()
     }
   }
 

@@ -15,12 +15,12 @@
  */
 package com.joaquindiez.koolQueue.jobs
 
+import com.joaquindiez.koolQueue.config.KoolQueueSchedulerConfig
+import com.joaquindiez.koolQueue.core.KoolQueueScheduler
 import com.joaquindiez.koolQueue.core.KoolQueueTask
 
 import com.joaquindiez.koolQueue.core.RegisteredTask
-import com.joaquindiez.koolQueue.domain.KoolQueueClaimedExecutions
 import com.joaquindiez.koolQueue.domain.KoolQueueJobs
-import com.joaquindiez.koolQueue.repository.KoolQueueClaimedExecutionsRepository
 import io.micronaut.context.BeanContext
 import io.micronaut.json.JsonMapper
 import jakarta.inject.Inject
@@ -28,6 +28,7 @@ import jakarta.inject.Singleton
 import jakarta.persistence.EntityManagerFactory
 import com.joaquindiez.koolQueue.services.KoolQueueJobsService
 import com.joaquindiez.koolQueue.services.KoolQueueReadyExecutionService
+import com.joaquindiez.koolQueue.services.KoolQueueReaperService
 import io.micronaut.context.ApplicationContext
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
@@ -37,17 +38,65 @@ import java.io.ByteArrayInputStream
 class KoolQueueScheduledJob(
   private val taskService: KoolQueueJobsService,
   private val readyExecutionService: KoolQueueReadyExecutionService,
-  private val claimedExecutionsRepository: KoolQueueClaimedExecutionsRepository,
   private val jsonMapper: JsonMapper,
   private val applicationContext: ApplicationContext,  // ✅ Added to verify shutdown
+  private val schedulerConfig: KoolQueueSchedulerConfig,
+  private val scheduler: KoolQueueScheduler,
+  private val reaperService: KoolQueueReaperService,
    ) {
+
+  companion object {
+    // Task names referenced both by the @KoolQueueTask annotation and at runtime
+    // when looking up our own kool_queue_processes.id from the scheduler.
+    const val SCHEDULED_TASK_NAME: String = "checkScheduledTasks"
+    const val READY_TASK_NAME: String = "checkReadyTasks"
+    const val REAPER_TASK_NAME: String = "reapDeadWorkers"
+
+    // Bound on how many dead processes one reaper tick will handle, just to
+    // keep tail latency on the periodic task predictable if the table has
+    // accumulated a backlog.
+    private const val REAPER_MAX_PER_TICK: Int = 50
+  }
 
   @Inject
   lateinit var beanContext: BeanContext
 
   private val logger = LoggerFactory.getLogger(javaClass)
 
-  @KoolQueueTask(name = "checkScheduledTasks", interval = "1s", initialDelay = "10s", maxConcurrency = 1)
+  /**
+   * Periodically reaps workers whose heartbeat has gone stale: any jobs
+   * they had claimed are moved back into ready_executions, and the dead
+   * process row is removed. Without this, a crashed worker leaves its
+   * claimed jobs stuck forever in `claimed_executions` and no one picks
+   * them up. Initial delay is intentionally larger than the heartbeat
+   * threshold so this worker's own freshly-registered process doesn't
+   * accidentally get reaped.
+   */
+  @KoolQueueTask(name = REAPER_TASK_NAME, interval = "30s", initialDelay = "60s", maxConcurrency = 1)
+  fun reapDeadWorkers() {
+    if (!applicationContext.isRunning || !isDatabaseAvailable()) return
+
+    val threshold = schedulerConfig.deadWorkerThresholdSeconds
+    var reaped = 0
+    var reEnqueued = 0
+
+    while (reaped < REAPER_MAX_PER_TICK) {
+      val result = try {
+        reaperService.reapOne(threshold)
+      } catch (e: Exception) {
+        handleShutdownAwareException(e, "reaper")
+        return
+      } ?: break
+      reaped++
+      reEnqueued += result.reEnqueuedJobs
+    }
+
+    if (reaped > 0) {
+      logger.info("Reaper: $reaped dead worker(s) reaped, $reEnqueued claimed job(s) re-enqueued")
+    }
+  }
+
+  @KoolQueueTask(name = SCHEDULED_TASK_NAME, interval = "1s", initialDelay = "10s", maxConcurrency = 1)
   fun checkScheduledTasks(){
 
     logger.debug("Check Scheduling tasks")
@@ -69,7 +118,7 @@ class KoolQueueScheduledJob(
   }
 
   //@Scheduled(fixedRate = "2s", fixedDelay = "5s")
-  @KoolQueueTask(name = "checkReadyTasks", interval = "0.1s", initialDelay = "10s",  maxConcurrency = 5)
+  @KoolQueueTask(name = READY_TASK_NAME, interval = "0.1s", initialDelay = "10s",  maxConcurrency = 5)
   //context(task: RegisteredTask)
   fun checkPendingTasks() {
 
@@ -85,12 +134,28 @@ class KoolQueueScheduledJob(
       return
     }
 
-    //01. Get Jobs Ready to Execute
-    val readyExecuteJobList = readyExecutionService.pollJobsForExecution(limit = 1)
-    //val nextPendingTasks =  taskService.findNextJobsPending(limit = 1)
-    logger.debug("Check next Jobs to Run pending jobs to Run ${readyExecuteJobList.size}")
+    val configuredQueues = schedulerConfig.queues
+    val queueLabel: String = if (configuredQueues.isEmpty()) "ALL" else configuredQueues.toString()
 
-    for (jobId in readyExecuteJobList) {
+    // Resolve our own kool_queue_processes.id once per poll. The scheduler
+    // populates it lazily on the first scheduled tick (inside the executor's
+    // ThreadFactory), so by the time this method runs the id should be set.
+    // If for some reason it isn't yet, we fall back to 0 — same behaviour as
+    // before — but log it so it's visible.
+    val workerProcessId = scheduler.getProcessIdForTask(READY_TASK_NAME)
+    if (workerProcessId == null) {
+      logger.warn("Worker process id for task '$READY_TASK_NAME' is not registered yet; claimed jobs will record process_id=0")
+    }
+    val claimingProcessId = workerProcessId ?: 0L
+
+    //01. Claim ready jobs atomically: poll (FOR UPDATE SKIP LOCKED) + insert
+    // into claimed_executions + delete from ready, all in ONE transaction so
+    // the lock is held until commit and a concurrent worker cannot re-poll the
+    // same row. Jobs are RUN below, after the claim transaction has committed.
+    val claimedJobIds = readyExecutionService.claimReadyJobs(configuredQueues, claimingProcessId, limit = 1)
+    logger.debug("Claimed ${claimedJobIds.size} job(s) to run (queues=$queueLabel)")
+
+    for (jobId in claimedJobIds) {
       // ✅ CHECK: State before processing each job
       if (!applicationContext.isRunning || !isDatabaseAvailable()) {
         logger.debug("Application/Database shutting down - stopping job processing")
@@ -98,16 +163,13 @@ class KoolQueueScheduledJob(
       }
 
       val job = taskService.findById(jobId)
-      if ( job != null ) {
-        //02. Insert in claimed_executions and delete from ready executions
-        claimedExecutionsRepository.save(KoolQueueClaimedExecutions(jobId = jobId, processId = 0))
-        readyExecutionService.removeFromReady(jobId)
-
+      if (job != null) {
         processJobTaskSafely(job)
-      }else{
-        logger.warn("Job not found id=$jobId")
+      } else {
+        // Should not happen: the job was just claimed and removed from ready,
+        // and ready_executions has an FK to jobs. Log defensively.
+        logger.warn("Claimed job not found id=$jobId (already removed from ready)")
       }
-
     }
   }
 
@@ -122,6 +184,9 @@ class KoolQueueScheduledJob(
     val className = classNameField.get(jobTask) as String
     val jobId = jobIdField.get(jobTask)
     val metadata = metadataField.get(jobTask) as String
+
+    // Per-job retry budget from @KoolQueueJob(maxAttempts=...); null = use global.
+    val maxAttemptsOverride = resolveMaxAttemptsOverride(className)
 
     try {
       val applicationJob = beanContext.getBean(Class.forName(className))
@@ -148,7 +213,7 @@ class KoolQueueScheduledJob(
               logger.error("Job taskId=$jobId className=$className finished onError")
 
               safeUpdateJobStatus(jobTask, jobId.toString(), "failure") {
-                taskService.finishOnErrorTask(jobTask, it)
+                taskService.finishOnErrorTask(jobTask, it, maxAttemptsOverride)
               }
             }
           )
@@ -157,7 +222,7 @@ class KoolQueueScheduledJob(
           logger.error("Job taskId=$jobId className=$className UnExpected failure", ex)
 
           safeUpdateJobStatus(jobTask, jobId.toString(), "unexpected error") {
-            taskService.finishOnErrorTask(jobTask, ex)
+            taskService.finishOnErrorTask(jobTask, ex, maxAttemptsOverride)
           }
         }
 
@@ -165,7 +230,7 @@ class KoolQueueScheduledJob(
         logger.error("Job className=$className not valid taskId=$jobId")
 
         safeUpdateJobStatus(jobTask, jobId.toString(), "invalid job class") {
-          taskService.finishOnErrorTask(jobTask, Error("Job className=$className not valid taskId=$jobId") )
+          taskService.finishOnErrorTask(jobTask, Error("Job className=$className not valid taskId=$jobId"), maxAttemptsOverride)
         }
 
       }
@@ -178,10 +243,18 @@ class KoolQueueScheduledJob(
       logger.error("Error processing job taskId=$jobId className=$className", e)
 
       safeUpdateJobStatus(jobTask, jobId.toString(), "processing error") {
-        taskService.finishOnErrorTask(jobTask, e)
+        taskService.finishOnErrorTask(jobTask, e, maxAttemptsOverride)
       }
     }
   }
+
+  /** Per-job retry budget from `@KoolQueueJob(maxAttempts=...)`, or null to use the global default. */
+  private fun resolveMaxAttemptsOverride(className: String): Int? =
+    try {
+      Class.forName(className).getAnnotation(KoolQueueJob::class.java)?.maxAttempts?.takeIf { it >= 0 }
+    } catch (e: Throwable) {
+      null
+    }
 
   // ✅ SAFE METHOD: Only updates DB if available
   private fun safeUpdateJobStatus(jobTask: Any, jobId: String, operation: String, updateAction: () -> Unit) {

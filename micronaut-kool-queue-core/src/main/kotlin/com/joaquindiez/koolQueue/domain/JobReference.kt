@@ -52,6 +52,11 @@ data class JobReference(
     val className: String,
 
     /**
+     * Queue this job was enqueued into.
+     */
+    val queueName: String,
+
+    /**
      * When the job is scheduled to run.
      * Null if the job was enqueued for immediate execution.
      */
@@ -68,5 +73,5 @@ data class JobReference(
     fun isScheduled(): Boolean = scheduledAt != null
 
     override fun toString(): String =
-        "JobReference(jobId=$jobId, class=${getSimpleClassName()}, scheduled=${isScheduled()})"
+        "JobReference(jobId=$jobId, class=${getSimpleClassName()}, queue='$queueName', scheduled=${isScheduled()})"
 }

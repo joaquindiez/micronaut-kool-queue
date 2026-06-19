@@ -22,24 +22,55 @@ import java.time.LocalDateTime
 
 
 @Controller("/task")
-class TestController( val testJobs: TestJobs) {
+class TestController(
+  val testJobs: TestJobs,
+  val reportJobs: ReportJobs,
+  val flakyJob: FlakyJob,
+  val alwaysFailingJob: AlwaysFailingJob,
+) {
 
   @Get
-  fun addTest(): JobReference{
-
-    val jobRef = testJobs.processLater("Hello")
-    println("Job ID: ${jobRef.jobId}")
-    // Encolar y obtener referencia
+  fun addEmail(): JobReference {
+    val jobRef = testJobs.processLater("hello-emails")
+    println("Job enqueued: $jobRef")
     return jobRef
+  }
 
+  @Get("/report")
+  fun addReport(): JobReference {
+    val jobRef = reportJobs.processLater("hello-reports")
+    println("Job enqueued: $jobRef")
+    return jobRef
+  }
+
+  @Get("/override")
+  fun addOverride(): JobReference {
+    // Per-call override — routes to a queue this worker is NOT configured to poll
+    val jobRef = testJobs.processLater("hello-vip", queue = "vip")
+    println("Job enqueued: $jobRef")
+    return jobRef
   }
 
   @Get("/scheduled")
-  fun addTestScheduled(): JobReference{
+  fun addTestScheduled(): JobReference {
+    val jobRef = testJobs.processLater("hello-scheduled", scheduledAt = LocalDateTime.now().plusMinutes(1))
+    println("Job enqueued: $jobRef")
+    return jobRef
+  }
 
-    val jobRef = testJobs.processLater("Hello Scheduled", scheduledAt = LocalDateTime.now().plusMinutes(1))
-    println("Job ID: ${jobRef}")
+  @Get("/flaky")
+  fun addFlaky(): JobReference {
+    // Fails twice then succeeds — exercises retry + eventual success.
+    val jobRef = flakyJob.processLater("flaky-payload")
+    println("Job enqueued: $jobRef")
+    return jobRef
+  }
 
+  @Get("/always-fail")
+  fun addAlwaysFail(): JobReference {
+    // Always fails — exercises retry budget exhaustion + dead-letter.
+    val jobRef = alwaysFailingJob.processLater("doomed-payload")
+    println("Job enqueued: $jobRef")
     return jobRef
   }
 }

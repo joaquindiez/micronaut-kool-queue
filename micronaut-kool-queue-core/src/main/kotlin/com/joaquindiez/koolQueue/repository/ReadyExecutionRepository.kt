@@ -16,6 +16,7 @@
 package com.joaquindiez.koolQueue.repository
 
 
+import com.joaquindiez.koolQueue.config.KoolQueueTableNames
 import com.joaquindiez.koolQueue.domain.KoolQueueReadyExecution
 import io.micronaut.data.jdbc.runtime.JdbcOperations
 import io.micronaut.transaction.annotation.Transactional
@@ -25,7 +26,8 @@ import java.sql.Timestamp
 
 @Singleton
 open class ReadyExecutionRepository(
-  private val jdbcTemplate: JdbcOperations
+  private val jdbcTemplate: JdbcOperations,
+  private val tables: KoolQueueTableNames
 ) {
 
   /**
@@ -47,7 +49,7 @@ open class ReadyExecutionRepository(
   @Transactional
   open fun save(readyExecution: KoolQueueReadyExecution): KoolQueueReadyExecution {
     val sql = """
-            INSERT INTO kool_queue_ready_executions (job_id, queue_name, priority, created_at)
+            INSERT INTO ${tables.readyExecutions} (job_id, queue_name, priority, created_at)
             VALUES (?, ?, ?, ?)
             RETURNING id, job_id, queue_name, priority, created_at
         """.trimIndent()
@@ -73,7 +75,7 @@ open class ReadyExecutionRepository(
   fun findByJobId(jobId: Long): KoolQueueReadyExecution? {
     val sql = """
             SELECT id, job_id, queue_name, priority, created_at
-            FROM kool_queue_ready_executions
+            FROM ${tables.readyExecutions}
             WHERE job_id = ?
         """.trimIndent()
 
@@ -92,7 +94,7 @@ open class ReadyExecutionRepository(
    * Checks if a ready execution exists for the given job_id
    */
   fun existsByJobId(jobId: Long): Boolean {
-    val sql = "SELECT 1 FROM kool_queue_ready_executions WHERE job_id = ? LIMIT 1"
+    val sql = "SELECT 1 FROM ${tables.readyExecutions} WHERE job_id = ? LIMIT 1"
 
     return jdbcTemplate.prepareStatement(sql) { ps ->
       ps.setLong(1, jobId)
@@ -107,7 +109,7 @@ open class ReadyExecutionRepository(
    */
   @Transactional
   open fun deleteByJobId(jobId: Long): Int {
-    val sql = "DELETE FROM kool_queue_ready_executions WHERE job_id = ?"
+    val sql = "DELETE FROM ${tables.readyExecutions} WHERE job_id = ?"
 
     return jdbcTemplate.prepareStatement(sql) { ps ->
       ps.setLong(1, jobId)
@@ -121,7 +123,7 @@ open class ReadyExecutionRepository(
   fun countByQueueName(queueName: String): Long {
     val sql = """
             SELECT COUNT(*) 
-            FROM kool_queue_ready_executions 
+            FROM ${tables.readyExecutions} 
             WHERE queue_name = ?
         """.trimIndent()
 
@@ -136,7 +138,7 @@ open class ReadyExecutionRepository(
    * Counts total ready jobs
    */
   fun count(): Long {
-    val sql = "SELECT COUNT(*) FROM kool_queue_ready_executions"
+    val sql = "SELECT COUNT(*) FROM ${tables.readyExecutions}"
 
     return jdbcTemplate.prepareStatement(sql) { ps ->
       val rs = ps.executeQuery()
@@ -150,7 +152,7 @@ open class ReadyExecutionRepository(
   fun findByQueueNameOrderedByPriority(queueName: String): List<KoolQueueReadyExecution> {
     val sql = """
             SELECT id, job_id, queue_name, priority, created_at
-            FROM kool_queue_ready_executions
+            FROM ${tables.readyExecutions}
             WHERE queue_name = ?
             ORDER BY priority ASC, job_id ASC
         """.trimIndent()
@@ -174,7 +176,7 @@ open class ReadyExecutionRepository(
   fun findAllOrderedByPriority(): List<KoolQueueReadyExecution> {
     val sql = """
             SELECT id, job_id, queue_name, priority, created_at
-            FROM kool_queue_ready_executions
+            FROM ${tables.readyExecutions}
             ORDER BY priority ASC, job_id ASC
         """.trimIndent()
 
@@ -201,7 +203,7 @@ open class ReadyExecutionRepository(
   open fun pollJobsForUpdate(limit: Int): List<Long> {
     val sql = """
             SELECT job_id 
-            FROM kool_queue_ready_executions
+            FROM ${tables.readyExecutions}
             ORDER BY priority ASC, job_id ASC
             LIMIT ?
             FOR UPDATE SKIP LOCKED
@@ -229,7 +231,7 @@ open class ReadyExecutionRepository(
   open fun pollJobsForUpdateByQueue(queueName: String, limit: Int): List<Long> {
     val sql = """
             SELECT job_id 
-            FROM kool_queue_ready_executions
+            FROM ${tables.readyExecutions}
             WHERE queue_name = ?
             ORDER BY priority ASC, job_id ASC
             LIMIT ?
@@ -268,7 +270,7 @@ open class ReadyExecutionRepository(
 
     val sql = """
             SELECT job_id, queue_name
-            FROM kool_queue_ready_executions
+            FROM ${tables.readyExecutions}
             WHERE queue_name IN ($placeholders)
             ORDER BY 
                 CASE queue_name
@@ -312,7 +314,7 @@ open class ReadyExecutionRepository(
    */
   @Transactional
   open fun deleteAll(): Int {
-    val sql = "DELETE FROM kool_queue_ready_executions"
+    val sql = "DELETE FROM ${tables.readyExecutions}"
     return jdbcTemplate.prepareStatement(sql) { ps ->
       ps.executeUpdate()
     }

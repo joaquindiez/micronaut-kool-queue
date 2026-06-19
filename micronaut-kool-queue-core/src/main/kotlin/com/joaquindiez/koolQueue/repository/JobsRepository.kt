@@ -15,8 +15,8 @@
  */
 package com.joaquindiez.koolQueue.repository
 
+import com.joaquindiez.koolQueue.config.KoolQueueTableNames
 import com.joaquindiez.koolQueue.domain.KoolQueueJobs
-import com.joaquindiez.koolQueue.domain.TaskStatus
 import io.micronaut.data.jdbc.runtime.JdbcOperations
 import jakarta.inject.Singleton
 import java.sql.Connection
@@ -28,12 +28,15 @@ import java.util.*
 
 
 @Singleton
-class JobsRepository (private val jdbcTemplate: JdbcOperations) {
+class JobsRepository (
+  private val jdbcTemplate: JdbcOperations,
+  private val tables: KoolQueueTableNames
+) {
 
 
   fun update(jobId: Long,  finishAt: LocalDateTime): Int {
     val sql = """
-            UPDATE kool_queue_jobs
+            UPDATE ${tables.jobs}
             SET finished_at = ?
             WHERE id = ?
         """.trimIndent()
@@ -46,12 +49,28 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
     }
   }
 
+  /**
+   * Sets the attempt counter for a job (used by the retry flow).
+   */
+  fun updateAttempts(jobId: Long, attempts: Int): Int {
+    val sql = """
+            UPDATE ${tables.jobs}
+            SET attempts = ?
+            WHERE id = ?
+        """.trimIndent()
+    return jdbcTemplate.prepareStatement(sql) { statement ->
+      statement.setInt(1, attempts)
+      statement.setLong(2, jobId)
+      statement.executeUpdate()
+    }
+  }
+
 
   fun findAllJobsPending(page: Int = 0, size: Int = 20): List<KoolQueueJobs> {
     val offset = page * size
     val sql = """
             SELECT *
-            FROM kool_queue_jobs
+            FROM ${tables.jobs}
             WHERE finished_at IS NULL
               AND (scheduled_at IS NULL OR scheduled_at <= ?)
             ORDER BY id ASC
@@ -78,7 +97,7 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
   fun countAllJobsPending(): Long {
     val sql = """
             SELECT COUNT(*)
-            FROM kool_queue_jobs
+            FROM ${tables.jobs}
             WHERE finished_at IS NULL
               AND (scheduled_at IS NULL OR scheduled_at <= ?)
         """.trimIndent()
@@ -100,7 +119,7 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
     fun findInProgressTasks(): List<KoolQueueJobs> {
       val sql = """
               SELECT *
-              FROM kool_queue_jobs
+              FROM ${tables.jobs}
               WHERE status = ?
               FOR UPDATE SKIP LOCKED
           """.trimIndent()
@@ -124,7 +143,7 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
     fun findNextJobsPending(limit: Int = 1): List<KoolQueueJobs> {
       val sql = """
               SELECT *
-              FROM kool_queue_jobs
+              FROM ${tables.jobs}
               WHERE status = ?
                AND (scheduled_at IS NULL OR scheduled_at <= ?)
               FOR UPDATE SKIP LOCKED
@@ -156,7 +175,7 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
   fun findAll(): List<KoolQueueJobs> {
     val sql = """
             SELECT *
-            FROM kool_queue_jobs
+            FROM ${tables.jobs}
         """.trimIndent()
 
     return jdbcTemplate.prepareStatement(sql) { statement ->
@@ -175,7 +194,7 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
   fun findById(id: Long): KoolQueueJobs? {
     val sql = """
             SELECT *
-            FROM kool_queue_jobs
+            FROM ${tables.jobs}
             WHERE id = ?
         """.trimIndent()
 
@@ -193,7 +212,7 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
   fun findByActiveJobId(activeJobId: UUID): KoolQueueJobs? {
     val sql = """
             SELECT *
-            FROM kool_queue_jobs
+            FROM ${tables.jobs}
             WHERE active_job_id = ?
         """.trimIndent()
 
@@ -211,7 +230,7 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
 
   fun save(job: KoolQueueJobs): Long? {
     val sql = """
-            INSERT INTO kool_queue_jobs (
+            INSERT INTO ${tables.jobs} (
                 queue_name, class_name, priority, arguments,active_job_id,
                 scheduled_at, finished_at, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -257,6 +276,7 @@ class JobsRepository (private val jdbcTemplate: JdbcOperations) {
       updatedAt = resultSet.getTimestamp("updated_at").toLocalDateTime(),
       finishedAt = finishedAt?.toInstant(),
       scheduledAt = scheduledAt?.toInstant(),
+      attempts = resultSet.getInt("attempts"),
       activeJobId = UUID.fromString(resultSet.getString("active_job_id"))
       // Map other fields as needed
     )

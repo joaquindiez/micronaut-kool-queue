@@ -47,5 +47,58 @@ data class KoolQueueSchedulerConfig(
   /**
    * Maximum time in seconds to wait during graceful shutdown
    */
-  var shutdownTimeoutSeconds: Long = 30
+  var shutdownTimeoutSeconds: Long = 30,
+
+  /**
+   * Seconds since a worker's last heartbeat before it is considered dead.
+   * Stale workers are reaped: any jobs they claimed are moved back to
+   * `ready_executions` and their process row is removed.
+   *
+   * Must comfortably exceed the slowest task's heartbeat gap. A task only
+   * refreshes its heartbeat once per its own interval, and the reaper itself
+   * runs every 30s, so a live worker's heartbeat age can legitimately reach
+   * ~30s. A threshold at or below that makes the reaper reap live process
+   * rows (including its own). Keep it well above 30s. Default is conservative.
+   */
+  var deadWorkerThresholdSeconds: Long = 60,
+
+  /**
+   * Total number of attempts a job gets before it is moved to
+   * `failed_executions` (dead-lettered). 1 means no retry (fail on first
+   * error). A per-job `@KoolQueueJob(maxAttempts = N)` overrides this.
+   */
+  var maxAttempts: Int = 5,
+
+  /**
+   * Base delay (seconds) for the exponential retry backoff. The delay before
+   * retry number `n` (0-based) is `base * 2^n`, capped at
+   * [retryBackoffMaxSeconds]. With base=5: 5s, 10s, 20s, 40s, ...
+   */
+  var retryBackoffBaseSeconds: Long = 5,
+
+  /**
+   * Upper bound (seconds) on the exponential retry backoff delay.
+   */
+  var retryBackoffMaxSeconds: Long = 300,
+
+  /**
+   * Queues this worker will poll, in priority order.
+   * Empty list (the default) polls all queues globally.
+   *
+   * Example for a node that only handles emails and falls back to default:
+   * `queues: ["emails", "default"]`
+   */
+  var queues: List<String> = emptyList(),
+
+  /**
+   * Postgres schema where Kool Queue's tables live.
+   * - null/empty (default): tables are created and queried in the connection's
+   *   default schema (typically `public`), preserving the legacy behavior.
+   * - non-empty: the schema is created if missing and all DDL/DML is qualified
+   *   as `<schema>.kool_queue_*`, so Kool Queue's tables stay isolated from
+   *   the host application's tables.
+   *
+   * Must be a valid SQL identifier (`[A-Za-z_][A-Za-z0-9_]*`).
+   */
+  var schema: String? = null
 )

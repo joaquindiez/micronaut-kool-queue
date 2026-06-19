@@ -6,6 +6,18 @@ micronaut:
       max-concurrent-tasks: 4
       shutdown-timeout-seconds: 30
       enable-management-endpoints: true
+      # Must stay comfortably above the slowest task's heartbeat gap (the
+      # reaper itself beats once per 30s), or live workers get self-reaped.
+      dead-worker-threshold-seconds: 60
+      # Retry/backoff (small values here keep the manual retry test fast)
+      max-attempts: 5
+      retry-backoff-base-seconds: 1
+      retry-backoff-max-seconds: 10
+      schema: kool_queue
+      queues:
+        - emails
+        - reports
+        # "vip" intentionally NOT included — jobs sent there should sit unprocessed
 
 endpoints:
   all:
@@ -33,3 +45,9 @@ jpa:
       hibernate:
         hbm2ddl:
           auto: update
+
+  logger:
+    levels:
+      com.joaquindiez.koolQueue: DEBUG
+      io.micronaut.context: WARN
+

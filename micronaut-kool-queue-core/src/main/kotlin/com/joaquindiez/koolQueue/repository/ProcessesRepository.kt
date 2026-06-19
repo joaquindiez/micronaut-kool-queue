@@ -15,6 +15,7 @@
  */
 package com.joaquindiez.koolQueue.repository
 
+import com.joaquindiez.koolQueue.config.KoolQueueTableNames
 import com.joaquindiez.koolQueue.domain.KoolQueueProcesses
 import io.micronaut.data.jdbc.runtime.JdbcOperations
 import io.micronaut.transaction.annotation.Transactional
@@ -25,7 +26,8 @@ import java.time.Instant
 
 @Singleton
 open class ProcessesRepository(
-  private val jdbcTemplate: JdbcOperations
+  private val jdbcTemplate: JdbcOperations,
+  private val tables: KoolQueueTableNames
 ) {
   /**
    * RowMapper to convert ResultSet to KoolQueueProcesses
@@ -54,7 +56,7 @@ open class ProcessesRepository(
   @Transactional
   open fun registerProcess(process: KoolQueueProcesses): KoolQueueProcesses {
     val sql = """
-            INSERT INTO kool_queue_processes (kind, name, pid, hostname, supervisor_id, last_heartbeat_at, metadata, created_at)
+            INSERT INTO ${tables.processes} (kind, name, pid, hostname, supervisor_id, last_heartbeat_at, metadata, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id, kind, name, pid, hostname, supervisor_id, last_heartbeat_at, metadata, created_at
         """.trimIndent()
@@ -85,7 +87,7 @@ open class ProcessesRepository(
   @Transactional
   open fun updateHeartbeat(processId: Long): Int {
     val sql = """
-            UPDATE kool_queue_processes
+            UPDATE ${tables.processes}
             SET last_heartbeat_at = ?
             WHERE id = ?
         """.trimIndent()
@@ -93,6 +95,44 @@ open class ProcessesRepository(
     return jdbcTemplate.prepareStatement(sql) { ps ->
       ps.setTimestamp(1, Timestamp.from(Instant.now()))
       ps.setLong(2, processId)
+      ps.executeUpdate()
+    }
+  }
+
+  /**
+   * Returns the id of one process whose last heartbeat is older than the
+   * given cutoff, locked FOR UPDATE SKIP LOCKED so concurrent reapers don't
+   * pick the same row. The lock lives until the surrounding transaction
+   * commits, so the caller MUST be inside a @Transactional method.
+   *
+   * Returns null if no stale process is available to be reaped.
+   */
+  @Transactional
+  open fun findOneDeadProcessId(cutoff: Instant): Long? {
+    val sql = """
+            SELECT id
+            FROM ${tables.processes}
+            WHERE last_heartbeat_at < ?
+            ORDER BY last_heartbeat_at ASC
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+        """.trimIndent()
+
+    return jdbcTemplate.prepareStatement(sql) { ps ->
+      ps.setTimestamp(1, Timestamp.from(cutoff))
+      val rs = ps.executeQuery()
+      if (rs.next()) rs.getLong("id") else null
+    }
+  }
+
+  /**
+   * Deletes a process row. Returns the number of deleted rows.
+   */
+  @Transactional
+  open fun deleteProcess(processId: Long): Int {
+    val sql = "DELETE FROM ${tables.processes} WHERE id = ?"
+    return jdbcTemplate.prepareStatement(sql) { ps ->
+      ps.setLong(1, processId)
       ps.executeUpdate()
     }
   }

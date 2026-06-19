@@ -236,6 +236,19 @@ class KoolQueueScheduler(
     return registeredTasks.keys.toList()
   }
 
+  /**
+   * Returns the kool_queue_processes.id assigned to the periodic task with the
+   * given name, or null if no task is registered or the task hasn't yet
+   * acquired its first thread (the process row is created lazily inside the
+   * executor's ThreadFactory on the first scheduled tick).
+   *
+   * Beans that need to record "who claimed this job" — e.g. when inserting
+   * into kool_queue_claimed_executions — call this with their own task name
+   * so the FK back to kool_queue_processes is real instead of 0.
+   */
+  fun getProcessIdForTask(name: String): Long? =
+    registeredTasks[name]?.currentProcessId?.takeIf { it != 0L }
+
   fun getActiveTaskCount(): Int {
     return activeTasks.get()
   }

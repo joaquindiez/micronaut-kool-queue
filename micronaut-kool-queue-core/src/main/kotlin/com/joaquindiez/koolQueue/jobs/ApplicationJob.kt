@@ -37,7 +37,16 @@ abstract class ApplicationJob<T : Any> {
   // ✅ Initialized after dependency injection
   private lateinit var cachedDataType: Class<T>
 
-  protected lateinit var jobRefence: JobReference
+  /**
+   * Default queue used when processLater is invoked without an explicit queue.
+   *
+   * Resolves to the [KoolQueueJob] annotation's `queue` if present, else
+   * [DEFAULT_QUEUE]. Override in subclasses only for dynamic/computed queues
+   * (an `override val` wins over the annotation):
+   * `override val queue: String = "emails"`
+   */
+  open val queue: String
+    get() = javaClass.getAnnotation(KoolQueueJob::class.java)?.queue ?: DEFAULT_QUEUE
 
   abstract fun process(data: T): Result<Boolean>
 
@@ -106,6 +115,7 @@ abstract class ApplicationJob<T : Any> {
    * Enqueues a job for later processing.
    *
    * @param data The payload to be processed by this job
+   * @param queue Queue to enqueue into. If null, uses the job class default ([queue]).
    * @param scheduledAt Optional time to schedule the job (null for immediate execution)
    * @return JobReference containing the job ID for tracking status
    *
@@ -114,18 +124,25 @@ abstract class ApplicationJob<T : Any> {
    * val jobRef = myJob.processLater(payload)
    * println("Job enqueued with ID: ${jobRef.jobId}")
    *
+   * // Override the destination queue per call:
+   * myJob.processLater(payload, queue = "high-priority")
+   *
    * // Later, check the status
    * val status = jobTracker.getStatus(jobRef.jobId)
    * ```
    */
-  fun processLater(data: T, scheduledAt: LocalDateTime? = null): JobReference {
+  fun processLater(data: T, queue: String? = null, scheduledAt: LocalDateTime? = null): JobReference {
     try {
       val dataType = getDataType()
       val jobType = this::class.java  // ← Pasar la clase del job
+      val effectiveQueue = queue ?: this.queue
 
-      logger.debug("Enqueueing job of type: ${dataType.simpleName}")
-      this.jobRefence = basicKoolQueueMessageProducer.send(data, jobType, scheduledAt)
-      return this.jobRefence
+      logger.debug("Enqueueing job of type: ${dataType.simpleName} on queue '$effectiveQueue'")
+      // The reference is returned to the caller, never stored on this bean:
+      // these singletons are shared across producer calls (and reused by the
+      // worker), so per-call state here would race and could be dereferenced
+      // uninitialized on a worker that never produced for this class.
+      return basicKoolQueueMessageProducer.send(data, jobType, effectiveQueue, scheduledAt)
     } catch (e: Exception) {
       logger.error("Failed to enqueue job", e)
       throw e
@@ -137,5 +154,9 @@ abstract class ApplicationJob<T : Any> {
     @Suppress("UNCHECKED_CAST")
     val typedData = rawData as T
     return process(typedData)
+  }
+
+  companion object {
+    const val DEFAULT_QUEUE: String = "default"
   }
 }

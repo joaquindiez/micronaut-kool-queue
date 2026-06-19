@@ -32,7 +32,7 @@ class BasicKoolQueueMessageProducer(
 
   private val logger = org.slf4j.LoggerFactory.getLogger(javaClass)
 
-  override fun send(msg: Any, className: Class<*>, scheduledAt: LocalDateTime?): JobReference {
+  override fun send(msg: Any, className: Class<*>, queue: String, scheduledAt: LocalDateTime?): JobReference {
     val json = jsonMapper.writeValueAsString(msg)
 
     val scheduledTime = scheduledAt ?: LocalDateTime.now()
@@ -40,6 +40,7 @@ class BasicKoolQueueMessageProducer(
     val uuidV7 = UuidCreator.getTimeOrderedEpoch()
 
     val task = KoolQueueJobs(
+      queueName = queue,
       className = className.canonicalName,
       arguments = json,
       scheduledAt = scheduledInstant,
@@ -59,6 +60,7 @@ class BasicKoolQueueMessageProducer(
     return JobReference(
       jobId = uuidV7,
       className = className.canonicalName,
+      queueName = queue,
       scheduledAt = if (scheduledAt != null) scheduledInstant else null
     )
   }

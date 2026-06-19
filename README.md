@@ -183,10 +183,10 @@ micronaut:
 
 ## 1. Create Your Job Class
 
-Create a job by extending `ApplicationJob<T>` where `T` is the type of data your job will process:
+Create a job by extending `ApplicationJob<T>` where `T` is the type of data your job will process, and annotate it with `@KoolQueueJob`:
 
 ```kotlin
-@Singleton
+@KoolQueueJob(queue = "emails")
 class EmailNotificationJob : ApplicationJob<EmailData>() {
 
   private val logger = LoggerFactory.getLogger(javaClass)
@@ -216,6 +216,17 @@ data class EmailData(
   val body: String
 )
 ```
+
+`@KoolQueueJob` is meta-annotated with `@Singleton`, so the job is registered as
+a bean automatically — no separate `@Singleton` needed. The queue a job routes
+to is resolved with this precedence (highest first):
+
+1. the `queue` argument of `processLater(data, queue = "...")`
+2. an `override val queue: String = "..."` on the class (for dynamic/computed queues)
+3. `@KoolQueueJob(queue = "...")`
+4. the default queue (`"default"`)
+
+> The legacy form — `@Singleton` plus `override val queue` — still works.
 
 ## 2. Queue Jobs for Processing
 

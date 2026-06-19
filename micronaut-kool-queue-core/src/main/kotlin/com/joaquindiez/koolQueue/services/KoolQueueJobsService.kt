@@ -15,6 +15,7 @@
  */
 package com.joaquindiez.koolQueue.services
 
+import com.joaquindiez.koolQueue.config.KoolQueueSchedulerConfig
 import com.joaquindiez.koolQueue.domain.KoolQueueFailedExecutions
 import io.micronaut.transaction.annotation.Transactional
 import jakarta.inject.Singleton
@@ -28,7 +29,10 @@ import com.joaquindiez.koolQueue.repository.ReadyExecutionRepository
 import com.joaquindiez.koolQueue.repository.ScheduledExecutionRepository
 import org.slf4j.LoggerFactory
 
+import java.time.Instant
 import java.time.LocalDateTime
+import kotlin.math.min
+import kotlin.math.pow
 
 @Singleton
 open class KoolQueueJobsService(
@@ -38,6 +42,7 @@ open class KoolQueueJobsService(
   private val readyExecutionService: KoolQueueReadyExecutionService,
   private val claimedExecutionsRepository: KoolQueueClaimedExecutionsRepository,
   private val scheduledExecutionRepository: ScheduledExecutionRepository,
+  private val schedulerConfig: KoolQueueSchedulerConfig,
 ) {
   private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -116,14 +121,66 @@ open class KoolQueueJobsService(
     return task
   }
 
+  /**
+   * Handles a failed job run: retries with exponential backoff until the
+   * attempt budget is exhausted, then dead-letters to `failed_executions`.
+   *
+   * On a retry the claim is released and the job is re-enqueued as a scheduled
+   * execution at `now + backoff`; the scheduled sweep ([findNextScheduledJobsPending])
+   * promotes it back to ready once the delay elapses. Only when attempts run
+   * out does the job get `finished_at` stamped and a `failed_executions` row.
+   *
+   * [maxAttemptsOverride] (from `@KoolQueueJob(maxAttempts = ...)`) takes
+   * precedence over the global [KoolQueueSchedulerConfig.maxAttempts].
+   */
   @Transactional
-  open fun finishOnErrorTask(task: KoolQueueJobs, throwable: Throwable): KoolQueueJobs {
-    this.jobsRepository.update(task.id!!, LocalDateTime.now())
+  open fun finishOnErrorTask(
+    task: KoolQueueJobs,
+    throwable: Throwable,
+    maxAttemptsOverride: Int? = null
+  ): KoolQueueJobs {
+    val maxAttempts = maxAttemptsOverride ?: schedulerConfig.maxAttempts
+    val priorAttempts = task.attempts          // attempts before the run that just failed
+    val newAttempts = priorAttempts + 1        // counting the failed run
+
+    this.jobsRepository.updateAttempts(task.id!!, newAttempts)
     this.claimedExecutionsRepository.deleteByJobId(task.id)
-    this.failedExecutionsRepository.save(
-      KoolQueueFailedExecutions(jobId = task.id, error = "${throwable.message}"))
+
+    if (newAttempts < maxAttempts) {
+      val delaySeconds = retryDelaySeconds(priorAttempts)
+      val retryAt = Instant.now().plusSeconds(delaySeconds)
+      this.scheduledExecutionRepository.save(
+        KoolQueueScheduledExecution(
+          jobId = task.id,
+          queueName = task.queueName,
+          priority = task.priority,
+          scheduledAt = retryAt
+        )
+      )
+      logger.warn(
+        "Job id=${task.id} failed (attempt $newAttempts/$maxAttempts); retrying in ${delaySeconds}s: ${throwable.message}"
+      )
+    } else {
+      this.jobsRepository.update(task.id, LocalDateTime.now())
+      this.failedExecutionsRepository.save(
+        KoolQueueFailedExecutions(jobId = task.id, error = "${throwable.message}"))
+      logger.error(
+        "Job id=${task.id} failed permanently after $newAttempts attempt(s): ${throwable.message}"
+      )
+    }
 
     return task
+  }
+
+  /**
+   * Exponential backoff: `base * 2^priorAttempts`, capped at the configured
+   * maximum. `priorAttempts` is 0 for the first retry, so the first delay is
+   * exactly the base.
+   */
+  private fun retryDelaySeconds(priorAttempts: Int): Long {
+    val base = schedulerConfig.retryBackoffBaseSeconds.toDouble()
+    val cap = schedulerConfig.retryBackoffMaxSeconds.toDouble()
+    return min(base * 2.0.pow(priorAttempts), cap).toLong()
   }
 
 /*

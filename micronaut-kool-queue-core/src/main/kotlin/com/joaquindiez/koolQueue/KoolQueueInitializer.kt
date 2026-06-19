@@ -81,6 +81,12 @@ open class KoolQueueInitializer(
     } else {
       logger.info("✅ Kool Queue is already initialized")
     }
+
+    // Reconcile columns added by newer versions. Idempotent (ADD COLUMN IF NOT
+    // EXISTS), so it is a no-op on a freshly created schema and brings older
+    // databases — where the tables already exist — up to date without a
+    // drop/recreate. Runs under the advisory lock taken above.
+    schemaService.applyColumnMigrations()
   }
 
   private companion object {

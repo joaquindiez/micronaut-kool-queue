@@ -60,6 +60,29 @@ open class KoolQueueSchemaService(
   }
 
   /**
+   * Idempotent forward-only column migrations for databases whose tables were
+   * created by an earlier version.
+   *
+   * The initializer only runs `createAllTables()` on an empty database, so a
+   * column added to a `CREATE TABLE` never reaches a database that already has
+   * the tables. Each statement here uses `ADD COLUMN IF NOT EXISTS`, so it is a
+   * no-op on a fresh schema (where the column already exists) and safe to run on
+   * every startup. Append a new entry whenever a column is added to a table.
+   *
+   * Postgres-only (`ADD COLUMN IF NOT EXISTS`); revisit when MySQL support
+   * lands (see backlog #11).
+   */
+  @Transactional
+  open fun applyColumnMigrations() {
+    val migrations = listOf(
+      // #6 retries: attempt counter on the jobs table.
+      "ALTER TABLE ${tables.jobs} ADD COLUMN IF NOT EXISTS attempts INT NOT NULL DEFAULT 0",
+    )
+    migrations.forEach { entityManager.createNativeQuery(it).executeUpdate() }
+    println("✅ Kool Queue column migrations applied (${migrations.size})")
+  }
+
+  /**
    * 1. MAIN TABLE: Central registry of all jobs
    */
   @Transactional

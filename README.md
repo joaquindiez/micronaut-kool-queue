@@ -2,7 +2,7 @@
 
 Kool Queue is a DB-based queuing backend for Micronaut Framework, designed with simplicity and performance in mind.
 
-Kool Queue uses PostgreSQL and leverages the FOR UPDATE SKIP LOCKED clause to avoid blocking and waiting on locks when polling jobs.
+Kool Queue supports **PostgreSQL**, **MySQL 8+**, and **SQLite**, and leverages the `FOR UPDATE SKIP LOCKED` clause (on databases that support it) to avoid blocking and waiting on locks when polling jobs.
 
 
 # Installation
@@ -30,7 +30,7 @@ Step 2. Add the dependency
 
 ```
 dependencies {
-	        implementation 'com.github.joaquindiez:micronaut-kool-queue:0.3.0-SNAPSHOT'
+	        implementation 'com.github.joaquindiez:micronaut-kool-queue:0.3.2-SNAPSHOT'
 	}
 
 ```
@@ -55,7 +55,7 @@ Step 2. Add the dependency
 
 ```
 dependencies {
-	        implementation("com.github.joaquindiez:micronaut-kool-queue:0.3.0-SNAPSHOT")
+	        implementation("com.github.joaquindiez:micronaut-kool-queue:0.3.2-SNAPSHOT")
 	}
 
 ```
@@ -79,7 +79,7 @@ Step 2. Add the dependency
 <dependency>
 	    <groupId>com.github.joaquindiez</groupId>
 	    <artifactId>micronaut-kool-queue</artifactId>
-	    <version>0.3.0-SNAPSHOT</version>
+	    <version>0.3.2-SNAPSHOT</version>
 	</dependency>
 ```
 
@@ -165,18 +165,68 @@ jpa:
     
 ## Scheduler Configuration
 
-Add the Kool Queue scheduler settings to your `application.yml`:
+All scheduler settings live under `micronaut.scheduler.kool-queue` and **every one is optional** — Kool Queue boots with sensible defaults, so you can omit the whole block. Add only what you want to override:
 
 ```yaml
 micronaut:
   scheduler:
     kool-queue:
-      enabled: true
-      max-concurrent-tasks: 3
-      default-interval: 30s
-      default-initial-delay: 10s
-      shutdown-timeout-seconds: 30
+      enabled: true                      # master switch; false = no jobs are processed at all
+      max-concurrent-tasks: 3            # max jobs running simultaneously
+      default-interval: 30s              # default interval between task executions
+      default-initial-delay: 10s         # delay before the first execution
+      shutdown-timeout-seconds: 30       # max wait for in-flight jobs on graceful shutdown
+      dead-worker-threshold-seconds: 60  # heartbeat age before a worker is reaped (keep well above 30s)
+      max-attempts: 5                    # global retry budget before a job is dead-lettered
+      retry-backoff-base-seconds: 5      # exponential backoff base: 5s, 10s, 20s, 40s, ...
+      retry-backoff-max-seconds: 300     # cap on the backoff delay
+      queues: []                         # queues this worker polls; [] (default) = ALL queues
+      schema: null                       # Postgres schema for kool_queue_* tables (null = default schema)
+      enable-management-endpoints: true  # expose the /kool-queue-scheduler admin endpoints
 ```
+
+### Reference
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `enabled` | `true` | Master switch. When `false` the scheduler does not start and **no jobs are processed**. |
+| `max-concurrent-tasks` | `2` | Maximum number of jobs that can run simultaneously. |
+| `default-interval` | `30s` | Default interval between task executions (`30s`, `5m`, `1h`). |
+| `default-initial-delay` | `10s` | Delay before the first execution after startup. |
+| `shutdown-timeout-seconds` | `30` | Max seconds to wait for in-flight jobs during graceful shutdown. |
+| `dead-worker-threshold-seconds` | `60` | Seconds since a worker's last heartbeat before it is considered dead and reaped. **Must stay comfortably above 30s** — the reaper runs every 30s and a live worker's heartbeat age can legitimately reach ~30s, so a lower value risks reaping live workers. |
+| `max-attempts` | `5` | Total attempts a job gets before it is moved to `failed_executions` (dead-lettered). `1` means no retry. Overridden per-job by `@KoolQueueJob(maxAttempts = N)`. |
+| `retry-backoff-base-seconds` | `5` | Base delay for the exponential retry backoff. Delay before retry `n` (0-based) is `base * 2^n`. |
+| `retry-backoff-max-seconds` | `300` | Upper bound on the exponential retry backoff delay. |
+| `queues` | `[]` | Queues this worker polls, in priority order. **Empty (default) polls ALL queues.** See [Queue routing](#queue-routing) below. |
+| `schema` | `null` | Postgres schema where Kool Queue's tables live. `null`/empty uses the connection's default schema (e.g. `public`); a non-empty value isolates tables as `<schema>.kool_queue_*` (must match `[A-Za-z_][A-Za-z0-9_]*`). |
+| `enable-management-endpoints` | `true` | Exposes the admin endpoints described in [Management Endpoints](#management-endpoints). |
+
+### Queue routing
+
+By default `queues` is empty, which means **this worker polls every queue**, so jobs annotated with `@KoolQueueJob(queue = "emails")` are picked up without any extra configuration.
+
+If you *do* set `queues`, the worker only polls the queues you list, in priority order — useful for dedicating nodes to specific workloads:
+
+```yaml
+micronaut:
+  scheduler:
+    kool-queue:
+      queues: ["emails", "default"]   # this node only handles 'emails' and 'default'
+```
+
+> ⚠️ **Footgun:** once you set `queues`, any job enqueued to a queue *not* in the list will be stored in the database but **never processed** by this worker. Either leave `queues` empty (process everything) or make sure every queue you use in a `@KoolQueueJob(queue = ...)` is covered by at least one running worker.
+
+### Per-job retry budget
+
+The global `max-attempts` can be overridden per job class with `@KoolQueueJob`:
+
+```kotlin
+@KoolQueueJob(queue = "emails", maxAttempts = 3)
+class EmailNotificationJob : ApplicationJob<EmailData>() { /* ... */ }
+```
+
+Failed jobs are retried with exponential backoff (`retry-backoff-base-seconds` × 2ⁿ, capped at `retry-backoff-max-seconds`). Once the attempt budget is exhausted the job is moved to `kool_queue_failed_executions` (dead-lettered).
 
 
 # Usage
@@ -272,10 +322,10 @@ class UserService(private val emailJob: EmailNotificationJob) {
 ## 3. Job Execution
 
 Jobs are automatically processed by the Kool Queue scheduler:
-- Polls the database every 2 seconds for pending jobs
+- A dispatcher moves due scheduled jobs into the ready queue (every ~1s), and workers poll the ready queue continuously (every ~0.1s) for jobs to run
 - Respects the `max-concurrent-tasks` configuration
-- Updates job status automatically (PENDING → IN_PROGRESS → DONE/ERROR)
-- Handles failures gracefully with proper error logging
+- Updates job status automatically (PENDING → IN_PROGRESS → COMPLETED/FAILED)
+- Handles failures gracefully with retries and exponential backoff before dead-lettering
 
 ## Advanced Examples
 
@@ -310,6 +360,63 @@ data class ProcessingRequest(
   val timestamp: Instant = Instant.now()
 )
 ```
+
+
+# Tracking Job Status
+
+`processLater()` returns a `JobReference` containing the job's unique `jobId` (a time-ordered UUID v7). Store that id to correlate the job with your domain entities and query its status later via `KoolQueueJobTracker`.
+
+```kotlin
+@Singleton
+class OrderService(
+  private val emailJob: EmailNotificationJob,
+  private val jobTracker: KoolQueueJobTracker,
+  private val orderRepository: OrderRepository
+) {
+
+  fun processOrder(order: Order) {
+    // Enqueue and capture the reference
+    val jobRef = emailJob.processLater(EmailData(order.customerEmail, "Confirmation", "..."))
+
+    // Persist the job id for later correlation
+    order.emailJobId = jobRef.jobId
+    orderRepository.save(order)
+  }
+
+  fun checkEmailStatus(order: Order): JobStatus? =
+    order.emailJobId?.let { jobTracker.getStatus(it)?.status }
+}
+```
+
+`KoolQueueJobTracker` lets you query status (`getStatus`, `getStatusOnly`), check existence/completion (`exists`, `isComplete`), block until done (`awaitCompletion`), and read the failure reason (`getErrorMessage`). Status values are `PENDING`, `SCHEDULED`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, and `NOT_FOUND`.
+
+> 📖 Full API, examples, and the status-determination flow: **[docs/job-tracking.md](./docs/job-tracking.md)**.
+
+
+# Management Endpoints
+
+Kool Queue ships built-in [Micronaut management endpoints](https://docs.micronaut.io/latest/guide/#providedEndpoints) for monitoring the queue. They are enabled by default (`micronaut.scheduler.kool-queue.enable-management-endpoints: true`); you typically also expose the endpoint and decide whether it requires authentication:
+
+```yaml
+endpoints:
+  kool-queue-scheduler:
+    enabled: true
+    sensitive: false   # set to true to require authentication
+```
+
+| Endpoint | Method | Path | Description |
+|----------|--------|------|-------------|
+| Scheduler stats | GET | `/kool-queue-scheduler` | Active/registered tasks, total/successful/failed executions, success rate. |
+| Pending tasks | GET | `/kool-queue-scheduler/tasks` | Paginated list of jobs waiting to run (`?page=0&size=20`, max size 100). |
+| In-progress tasks | GET | `/kool-queue-scheduler/in-progress` | Paginated list of jobs currently executing (`?page=0&size=20`, max size 100). |
+
+```bash
+curl http://localhost:8080/kool-queue-scheduler
+curl "http://localhost:8080/kool-queue-scheduler/tasks?page=0&size=20"
+curl "http://localhost:8080/kool-queue-scheduler/in-progress?page=1&size=50"
+```
+
+> 📖 Full request/response schemas and field-by-field reference: **[micronaut-kool-queue-core/README.md](./micronaut-kool-queue-core/README.md#-management-endpoints)**.
 
 
 # Inspiration

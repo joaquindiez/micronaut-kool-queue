@@ -262,9 +262,26 @@ curl -X GET "http://localhost:8080/kool-queue-scheduler/in-progress?page=1&size=
 
 ### Job Status Values
 
+Kool Queue exposes status through **two distinct enums** — don't confuse them:
+
+**`TaskStatus`** — the raw `status` column on the `kool_queue_jobs` entity, as returned by these management endpoints:
+
 | Status | Description |
 |--------|-------------|
 | `PENDING` | Job is queued and waiting for execution |
 | `IN_PROGRESS` | Job is currently being executed |
 | `DONE` | Job completed successfully |
 | `ERROR` | Job failed during execution |
+
+**`JobStatus`** — the richer, derived status returned by `KoolQueueJobTracker.getStatus()` for application-level tracking. It distinguishes scheduled-vs-ready jobs and a missing job:
+
+| Status | Description |
+|--------|-------------|
+| `PENDING` | In the ready queue, waiting for a worker |
+| `SCHEDULED` | Scheduled for a future time, not yet ready |
+| `IN_PROGRESS` | Currently being processed |
+| `COMPLETED` | Finished successfully |
+| `FAILED` | Execution failed (dead-lettered) |
+| `NOT_FOUND` | Job does not exist |
+
+See **[../docs/job-tracking.md](../docs/job-tracking.md)** for the `JobStatus` API and how it is determined.

@@ -70,8 +70,9 @@ Returned by `processLater()`. Contains the job identifier for tracking.
 
 ```kotlin
 data class JobReference(
-    val jobId: UUID,        // Unique job identifier (UUID v7)
-    val className: String,  // Fully qualified class name
+    val jobId: UUID,          // Unique job identifier (UUID v7, time-ordered)
+    val className: String,    // Fully qualified class name
+    val queueName: String,    // Queue the job was enqueued into
     val scheduledAt: Instant? // Scheduled time (null = immediate)
 )
 ```

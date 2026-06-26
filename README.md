@@ -2,7 +2,7 @@
 
 Kool Queue is a DB-based queuing backend for Micronaut Framework, designed with simplicity and performance in mind.
 
-Kool Queue supports **PostgreSQL**, **MySQL 8+**, and **SQLite**, and leverages the `FOR UPDATE SKIP LOCKED` clause (on databases that support it) to avoid blocking and waiting on locks when polling jobs.
+Kool Queue supports **PostgreSQL**, and leverages the `FOR UPDATE SKIP LOCKED` clause (on databases that support it) to avoid blocking and waiting on locks when polling jobs.
 
 
 # Installation
@@ -89,6 +89,80 @@ Step 2. Add the dependency
 
 Kool Queue was designed for the highest throughput when used with PostgreSQL 9.5+, as it supports FOR UPDATE SKIP LOCKED.
 You can use it with older versions, but in that case, you might run into lock waits if you run multiple workers for the same queue.
+
+
+# Architecture
+
+Kool Queue stores everything in SQL tables and drives all work with a few periodic in-process tasks. A producer writes a job into `kool_queue_jobs` plus a queue table; a **dispatcher** promotes scheduled jobs when they come due; a **worker** atomically claims ready jobs and runs them; and a **reaper** rescues jobs orphaned by crashed workers.
+
+### Core tables
+
+| Table | Role |
+|-------|------|
+| `kool_queue_jobs` | Permanent record of every job (metadata, lifecycle timestamps). |
+| `kool_queue_ready_executions` | Jobs ready to run **now** — workers poll this. |
+| `kool_queue_scheduled_executions` | Jobs to run **later** (delayed or awaiting a retry backoff). |
+| `kool_queue_claimed_executions` | Jobs **currently being executed** by a worker. |
+| `kool_queue_failed_executions` | **Dead-lettered** jobs that exhausted their retry budget. |
+| `kool_queue_processes` | Live worker **heartbeats**, used to detect dead workers. |
+
+### Queue flow
+
+```mermaid
+flowchart TD
+    Producer["processLater(data)"]
+    Jobs[("kool_queue_jobs<br/>permanent record")]
+    Ready[("kool_queue_ready_executions<br/>ready now")]
+    Scheduled[("kool_queue_scheduled_executions<br/>run later / retry backoff")]
+    Claimed[("kool_queue_claimed_executions<br/>running")]
+    Failed[("kool_queue_failed_executions<br/>dead-letter")]
+    Processes[("kool_queue_processes<br/>worker heartbeats")]
+
+    Dispatcher{{"Dispatcher · ~1s<br/>checkScheduledTasks"}}
+    Worker{{"Worker · ~0.1s<br/>checkPendingTasks"}}
+    Reaper{{"Reaper · 30s<br/>reapDeadWorkers"}}
+    Run(["Execute ApplicationJob.process()"])
+
+    Producer -->|INSERT record| Jobs
+    Producer -->|immediate| Ready
+    Producer -->|scheduledAt set| Scheduled
+
+    Scheduled --> Dispatcher
+    Dispatcher -->|promote when due| Ready
+
+    Ready --> Worker
+    Worker -->|"claim: FOR UPDATE SKIP LOCKED<br/>insert claimed + delete ready (1 tx)"| Claimed
+    Claimed --> Run
+
+    Run -->|success| Success["finished_at set<br/>delete claimed"]
+    Run -->|"failure · attempts left"| Retry["re-enqueue at now + backoff"]
+    Run -->|"failure · budget exhausted"| Failed
+
+    Retry --> Scheduled
+    Success -.update.-> Jobs
+    Failed -.update.-> Jobs
+
+    Worker -. heartbeat .-> Processes
+    Processes --> Reaper
+    Reaper -->|"stale worker:<br/>re-enqueue its claimed jobs"| Ready
+```
+
+### Job status lifecycle
+
+The status reported by `KoolQueueJobTracker` (`JobStatus`) follows this lifecycle:
+
+```mermaid
+stateDiagram-v2
+    [*] --> SCHEDULED: enqueued with scheduledAt
+    [*] --> PENDING: enqueued immediately
+    SCHEDULED --> PENDING: due time reached (dispatcher)
+    PENDING --> IN_PROGRESS: worker claims job
+    IN_PROGRESS --> COMPLETED: success
+    IN_PROGRESS --> SCHEDULED: failure, retry with backoff
+    IN_PROGRESS --> FAILED: retry budget exhausted
+    COMPLETED --> [*]
+    FAILED --> [*]
+```
 
 
 # Configuration

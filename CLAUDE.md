@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Micronaut-Kool-Queue is a database-based queuing backend for Micronaut Framework. It provides asynchronous job processing using SQL databases with support for PostgreSQL, MySQL 8+, and SQLite. The library leverages the `FOR UPDATE SKIP LOCKED` clause for high-performance job polling without blocking.
+Micronaut-Kool-Queue is a database-based queuing backend for Micronaut Framework. It provides asynchronous job processing on PostgreSQL. The library leverages the `FOR UPDATE SKIP LOCKED` clause for high-performance job polling without blocking. (MySQL/SQLite support is tracked as backlog #11 but not yet implemented — DDL/DML is currently Postgres-only.)
 
 ## Project Structure
 
@@ -68,5 +68,5 @@ Micronaut-Kool-Queue is a database-based queuing backend for Micronaut Framework
 - **Kotlin**: Primary language with JPA entities
 - **Micronaut Data**: Database access with JPA/Hibernate
 - **Jackson**: JSON serialization for job metadata
-- **PostgreSQL/MySQL/SQLite**: Supported databases
+- **PostgreSQL**: Supported database (MySQL/SQLite not yet implemented — see backlog #11)
 - **Gradle**: Build system with Kotlin DSL

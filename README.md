@@ -8,7 +8,11 @@ Kool Queue runs on **PostgreSQL** and leverages the `FOR UPDATE SKIP LOCKED` cla
 
 | Kool Queue | Micronaut | Java |
 | ---------- | --------- | ---- |
+| 1.0.x      | 5.1.x     | 25+  |
 | 0.4.x      | 4.10.x    | 17+  |
+
+Micronaut 5 raised its own baseline to Java 25, so `1.0.x` cannot run on an older JDK.
+Stay on the `0.4.x` line if you need Java 17.
 
 
 # Installation
@@ -36,7 +40,7 @@ Step 2. Add the dependency
 
 ```
 dependencies {
-	        implementation 'com.github.joaquindiez:micronaut-kool-queue:0.4.0'
+	        implementation 'com.github.joaquindiez:micronaut-kool-queue:1.0.0-SNAPSHOT'
 	}
 
 ```
@@ -61,7 +65,7 @@ Step 2. Add the dependency
 
 ```
 dependencies {
-	        implementation("com.github.joaquindiez:micronaut-kool-queue:0.4.0")
+	        implementation("com.github.joaquindiez:micronaut-kool-queue:1.0.0-SNAPSHOT")
 	}
 
 ```
@@ -85,7 +89,7 @@ Step 2. Add the dependency
 <dependency>
 	    <groupId>com.github.joaquindiez</groupId>
 	    <artifactId>micronaut-kool-queue</artifactId>
-	    <version>0.4.0</version>
+	    <version>1.0.0-SNAPSHOT</version>
 	</dependency>
 ```
 

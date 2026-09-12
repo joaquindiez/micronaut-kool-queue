@@ -23,6 +23,7 @@ import jakarta.inject.Singleton
 import java.sql.ResultSet
 import java.sql.Timestamp
 import java.time.Instant
+import java.util.Optional
 
 @Singleton
 open class ProcessesRepository(
@@ -121,8 +122,8 @@ open class ProcessesRepository(
     return jdbcTemplate.prepareStatement(sql) { ps ->
       ps.setTimestamp(1, Timestamp.from(cutoff))
       val rs = ps.executeQuery()
-      if (rs.next()) rs.getLong("id") else null
-    }
+      if (rs.next()) Optional.of(rs.getLong("id")) else Optional.empty()
+    }.orElse(null)
   }
 
   /**

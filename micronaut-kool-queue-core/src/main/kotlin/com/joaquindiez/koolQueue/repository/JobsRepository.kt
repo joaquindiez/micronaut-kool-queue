@@ -202,11 +202,11 @@ class JobsRepository (
       statement.setLong(1, id)
       val resultSet = statement.executeQuery()
       if (resultSet.next()) {
-        resultToJob(resultSet)
+        Optional.of(resultToJob(resultSet))
       } else {
-        null
+        Optional.empty()
       }
-    }
+    }.orElse(null)
   }
 
   /**
@@ -244,11 +244,11 @@ class JobsRepository (
       statement.setObject(1, activeJobId)
       val resultSet = statement.executeQuery()
       if (resultSet.next()) {
-        resultToJob(resultSet)
+        Optional.of(resultToJob(resultSet))
       } else {
-        null
+        Optional.empty()
       }
-    }
+    }.orElse(null)
   }
 
 
@@ -277,12 +277,12 @@ class JobsRepository (
         // Retrieve the generated key (usually the primary key)
         val generatedKeys = statement.generatedKeys
         if (generatedKeys.next()) {
-          generatedKeys.getLong(1) // Return the generated ID
+          Optional.of(generatedKeys.getLong(1)) // Return the generated ID
         } else {
-          null
+          Optional.empty()
         }
       }
-    }
+    }.orElse(null)
 
     }
 

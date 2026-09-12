@@ -23,6 +23,7 @@ import jakarta.inject.Singleton
 import java.sql.ResultSet
 import java.sql.Timestamp
 import java.time.LocalDateTime
+import java.util.Optional
 
 @Singleton
 open class ScheduledExecutionRepository(
@@ -85,8 +86,8 @@ open class ScheduledExecutionRepository(
       jdbcTemplate.prepareStatement(sql) { ps ->
         ps.setLong(1, jobId)
         val rs = ps.executeQuery()
-        if (rs.next()) mapRow(rs) else null
-      }
+        if (rs.next()) Optional.of(mapRow(rs)) else Optional.empty()
+      }.orElse(null)
     } catch (e: Exception) {
       null
     }

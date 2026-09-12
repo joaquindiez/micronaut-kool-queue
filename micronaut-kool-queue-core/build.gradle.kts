@@ -1,21 +1,21 @@
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.9.25"
-    id("org.jetbrains.kotlin.plugin.allopen") version "1.9.25"
-    id("org.jetbrains.kotlin.plugin.jpa") version "1.9.25"
-    id("com.google.devtools.ksp") version "1.9.25-1.0.20"
-    id("com.gradleup.shadow") version "8.3.9"
-    id("io.micronaut.library") version "4.6.2"
-    id("io.micronaut.aot") version "4.6.2"
+    id("org.jetbrains.kotlin.jvm") version "2.3.21"
+    id("org.jetbrains.kotlin.plugin.allopen") version "2.3.21"
+    id("org.jetbrains.kotlin.plugin.jpa") version "2.3.21"
+    id("com.google.devtools.ksp") version "2.3.10"
+    id("com.gradleup.shadow") version "9.6.1"
+    id("io.micronaut.library") version "5.0.2"
+    id("io.micronaut.aot") version "5.0.2"
     id("maven-publish")
 }
 
 
-version = project.findProperty("version") as String? ?: "0.4.0-SNAPSHOT"
+version = project.findProperty("version") as String? ?: "1.0.0-SNAPSHOT"
 group = project.findProperty("group") as String? ?: "com.joaquindiez"
-val kotlinCoroutinesVersion = "1.8.1"
-val slf4jVersion = "2.0.17"
+val kotlinCoroutinesVersion = "1.11.0"
+val slf4jVersion = "2.0.18"
 val uuidCreatorVersion = "6.1.1"
-val kotlinVersion=project.properties.get("kotlinVersion")
+val kotlinVersion = project.findProperty("kotlinVersion")
 
 repositories {
     mavenCentral()
@@ -53,7 +53,7 @@ dependencies {
   //  implementation("io.micronaut:micronaut-scheduling")
 
     compileOnly("io.micronaut:micronaut-http-client")
-    runtimeOnly("com.fasterxml.jackson.module:jackson-module-kotlin")
+    runtimeOnly("tools.jackson.module:jackson-module-kotlin")
     
     // Test dependencies
     testImplementation("io.micronaut:micronaut-http-client")
@@ -62,12 +62,12 @@ dependencies {
 
 
 java {
-    sourceCompatibility = JavaVersion.toVersion("17")
-    targetCompatibility = JavaVersion.toVersion("17")
+    sourceCompatibility = JavaVersion.toVersion("25")
+    targetCompatibility = JavaVersion.toVersion("25")
 }
 
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(25)
 }
 
 

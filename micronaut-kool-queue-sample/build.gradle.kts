@@ -1,17 +1,18 @@
 plugins {
-  id("org.jetbrains.kotlin.jvm") version "1.9.25"
-  id("org.jetbrains.kotlin.plugin.allopen") version "1.9.25"
-  id("org.jetbrains.kotlin.plugin.jpa") version "1.9.25"
-  id("com.google.devtools.ksp") version "1.9.25-1.0.20"
-  id("com.gradleup.shadow") version "8.3.9"
-  id("io.micronaut.application") version "4.6.2"
-  id("io.micronaut.aot") version "4.6.2"
+  id("org.jetbrains.kotlin.jvm") version "2.3.21"
+  id("org.jetbrains.kotlin.plugin.allopen") version "2.3.21"
+  id("org.jetbrains.kotlin.plugin.jpa") version "2.3.21"
+  id("com.google.devtools.ksp") version "2.3.10"
+  id("com.gradleup.shadow") version "9.6.1"
+  id("io.micronaut.application") version "5.0.2"
+  id("io.micronaut.aot") version "5.0.2"
 }
 
 version = "0.1"
 group = "com.freesoullabs"
 
-val kotlinVersion = project.properties.get("kotlinVersion")
+val kotlinVersion = project.findProperty("kotlinVersion")
+val testcontainersVersion = "2.0.5"
 repositories {
   mavenCentral()
 
@@ -43,12 +44,15 @@ dependencies {
 
   compileOnly("io.micronaut:micronaut-http-client")
   runtimeOnly("ch.qos.logback:logback-classic")
-  runtimeOnly("com.fasterxml.jackson.module:jackson-module-kotlin")
+  runtimeOnly("tools.jackson.module:jackson-module-kotlin")
   runtimeOnly("org.postgresql:postgresql")
   runtimeOnly("org.yaml:snakeyaml")
   testImplementation("io.micronaut:micronaut-http-client")
-  testImplementation("org.testcontainers:junit-jupiter")
-  testImplementation("org.testcontainers:postgresql")
+  // Micronaut 5 only version-manages testcontainers-bom, so import it as a platform.
+  // Testcontainers 2.x also renamed every module with a "testcontainers-" prefix.
+  testImplementation(platform("org.testcontainers:testcontainers-bom:$testcontainersVersion"))
+  testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+  testImplementation("org.testcontainers:testcontainers-postgresql")
   testImplementation("org.testcontainers:testcontainers")
 }
 
@@ -57,11 +61,11 @@ application {
   mainClass = "com.freesoullabs.ApplicationKt"
 }
 java {
-  sourceCompatibility = JavaVersion.toVersion("17")
+  sourceCompatibility = JavaVersion.toVersion("25")
 }
 
 kotlin {
-  jvmToolchain(17)
+  jvmToolchain(25)
   compilerOptions {
     freeCompilerArgs.add("-Xcontext-parameters")
   }

@@ -74,7 +74,7 @@ database round-trips, not throughput).
 
 ## Technology Stack
 
-- **Micronaut Framework 4.10.x**: Dependency injection and application framework (requires Java 17 or newer)
+- **Micronaut Framework 5.1.x**: Dependency injection and application framework (requires Java 25 or newer)
 - **Kotlin**: Primary language with JPA entities
 - **Micronaut Data**: Database access with JPA/Hibernate
 - **Jackson**: JSON serialization for job metadata

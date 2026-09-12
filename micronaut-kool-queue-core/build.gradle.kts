@@ -3,18 +3,18 @@ plugins {
     id("org.jetbrains.kotlin.plugin.allopen") version "1.9.25"
     id("org.jetbrains.kotlin.plugin.jpa") version "1.9.25"
     id("com.google.devtools.ksp") version "1.9.25-1.0.20"
-    id("com.gradleup.shadow") version "8.3.7"
-    id("io.micronaut.library") version "4.5.4"
-    id("io.micronaut.aot") version "4.5.4"
+    id("com.gradleup.shadow") version "8.3.9"
+    id("io.micronaut.library") version "4.6.2"
+    id("io.micronaut.aot") version "4.6.2"
     id("maven-publish")
 }
 
 
-version = project.findProperty("version") as String? ?: "0.2.4-SNAPSHOT"
+version = project.findProperty("version") as String? ?: "0.4.0-SNAPSHOT"
 group = project.findProperty("group") as String? ?: "com.joaquindiez"
-val kotlinCoroutinesVersion = "1.7.3"
-val slf4jVersion = "2.0.7"
-val uuidCreatorVersion = "5.3.7"
+val kotlinCoroutinesVersion = "1.8.1"
+val slf4jVersion = "2.0.17"
+val uuidCreatorVersion = "6.1.1"
 val kotlinVersion=project.properties.get("kotlinVersion")
 
 repositories {
@@ -29,7 +29,6 @@ dependencies {
 
     implementation("io.micronaut.data:micronaut-data-jpa")
     implementation("io.micronaut.data:micronaut-data-jdbc")
-    implementation("javax.persistence:javax.persistence-api") // API de JPA
     implementation("org.jetbrains.kotlin:kotlin-reflect:${kotlinVersion}")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${kotlinVersion}")
 

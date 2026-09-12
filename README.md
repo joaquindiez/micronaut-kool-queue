@@ -4,6 +4,12 @@ Kool Queue is a DB-based queuing backend for Micronaut Framework, designed with 
 
 Kool Queue runs on **PostgreSQL** and leverages the `FOR UPDATE SKIP LOCKED` clause to avoid blocking and waiting on locks when polling jobs.
 
+## Requirements
+
+| Kool Queue | Micronaut | Java |
+| ---------- | --------- | ---- |
+| 0.4.x      | 4.10.x    | 17+  |
+
 
 # Installation
 

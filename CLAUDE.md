@@ -64,7 +64,7 @@ Micronaut-Kool-Queue is a database-based queuing backend for Micronaut Framework
 
 ## Technology Stack
 
-- **Micronaut Framework 4.4.x**: Dependency injection and application framework
+- **Micronaut Framework 4.10.x**: Dependency injection and application framework (requires Java 17 or newer)
 - **Kotlin**: Primary language with JPA entities
 - **Micronaut Data**: Database access with JPA/Hibernate
 - **Jackson**: JSON serialization for job metadata

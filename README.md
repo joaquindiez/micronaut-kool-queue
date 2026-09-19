@@ -36,7 +36,7 @@ Step 2. Add the dependency
 
 ```
 dependencies {
-	        implementation 'com.github.joaquindiez:micronaut-kool-queue:0.4.0-SNAPSHOT'
+	        implementation 'com.github.joaquindiez:micronaut-kool-queue:0.4.0'
 	}
 
 ```
@@ -61,7 +61,7 @@ Step 2. Add the dependency
 
 ```
 dependencies {
-	        implementation("com.github.joaquindiez:micronaut-kool-queue:0.4.0-SNAPSHOT")
+	        implementation("com.github.joaquindiez:micronaut-kool-queue:0.4.0")
 	}
 
 ```
@@ -85,7 +85,7 @@ Step 2. Add the dependency
 <dependency>
 	    <groupId>com.github.joaquindiez</groupId>
 	    <artifactId>micronaut-kool-queue</artifactId>
-	    <version>0.4.0-SNAPSHOT</version>
+	    <version>0.4.0</version>
 	</dependency>
 ```
 

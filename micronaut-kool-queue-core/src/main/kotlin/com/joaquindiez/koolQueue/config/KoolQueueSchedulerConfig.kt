@@ -50,6 +50,21 @@ data class KoolQueueSchedulerConfig(
   var shutdownTimeoutSeconds: Long = 30,
 
   /**
+   * Size of the pool that runs claimed jobs, and therefore the largest batch
+   * the ready poller will claim in one tick: it asks the pool how many slots
+   * are free and claims exactly that many.
+   *
+   * This is what bounds throughput. The poller ticks 10 times a second, so a
+   * worker tops out near `jobExecutionThreads / job duration`, and never above
+   * `10 * jobExecutionThreads` jobs/s.
+   *
+   * Raising it costs database connections — each running job holds one while
+   * it updates its own status — so keep it comfortably under the datasource's
+   * maximum pool size, leaving room for the poller and the reaper.
+   */
+  var jobExecutionThreads: Int = 5,
+
+  /**
    * Seconds since a worker's last heartbeat before it is considered dead.
    * Stale workers are reaped: any jobs they claimed are moved back to
    * `ready_executions` and their process row is removed.

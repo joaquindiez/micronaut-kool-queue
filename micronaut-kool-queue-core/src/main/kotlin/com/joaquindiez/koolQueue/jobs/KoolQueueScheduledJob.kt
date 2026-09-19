@@ -16,6 +16,7 @@
 package com.joaquindiez.koolQueue.jobs
 
 import com.joaquindiez.koolQueue.config.KoolQueueSchedulerConfig
+import com.joaquindiez.koolQueue.core.KoolQueueJobExecutionPool
 import com.joaquindiez.koolQueue.core.KoolQueueScheduler
 import com.joaquindiez.koolQueue.core.KoolQueueTask
 
@@ -43,6 +44,7 @@ class KoolQueueScheduledJob(
   private val schedulerConfig: KoolQueueSchedulerConfig,
   private val scheduler: KoolQueueScheduler,
   private val reaperService: KoolQueueReaperService,
+  private val executionPool: KoolQueueJobExecutionPool,
    ) {
 
   companion object {
@@ -148,12 +150,22 @@ class KoolQueueScheduledJob(
     }
     val claimingProcessId = workerProcessId ?: 0L
 
+    // Claim only what we can actually run right now. Claiming more would leave
+    // jobs reserved by this worker with nothing to execute them, and claiming a
+    // fixed number regardless of capacity is what used to cap a worker at one
+    // job per tick (~10 jobs/s) no matter how much concurrency was configured.
+    val capacity = executionPool.availableCapacity
+    if (capacity <= 0) {
+      logger.debug("Execution pool is saturated ({} in flight) - skipping claim", executionPool.inFlightCount)
+      return
+    }
+
     //01. Claim ready jobs atomically: poll (FOR UPDATE SKIP LOCKED) + insert
     // into claimed_executions + delete from ready, all in ONE transaction so
     // the lock is held until commit and a concurrent worker cannot re-poll the
     // same row. Jobs are RUN below, after the claim transaction has committed.
-    val claimedJobIds = readyExecutionService.claimReadyJobs(configuredQueues, claimingProcessId, limit = 1)
-    logger.debug("Claimed ${claimedJobIds.size} job(s) to run (queues=$queueLabel)")
+    val claimedJobIds = readyExecutionService.claimReadyJobs(configuredQueues, claimingProcessId, limit = capacity)
+    logger.debug("Claimed ${claimedJobIds.size} job(s) to run (queues=$queueLabel, capacity=$capacity)")
 
     for (jobId in claimedJobIds) {
       // ✅ CHECK: State before processing each job
@@ -164,7 +176,14 @@ class KoolQueueScheduledJob(
 
       val job = taskService.findById(jobId)
       if (job != null) {
-        processJobTaskSafely(job)
+        // Hand off to the execution pool instead of running inline: this method
+        // is the polling tick, and running jobs here serialises the whole batch
+        // behind one thread. A job the pool refuses (shutdown in progress) stays
+        // claimed and is released by the reaper.
+        if (!executionPool.post { processJobTaskSafely(job) }) {
+          logger.warn("Could not submit job id=$jobId for execution; leaving it claimed for the reaper")
+          return
+        }
       } else {
         // Should not happen: the job was just claimed and removed from ready,
         // and ready_executions has an FK to jobs. Log defensively.

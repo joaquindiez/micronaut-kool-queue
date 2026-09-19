@@ -118,6 +118,27 @@ open class ReadyExecutionRepository(
   }
 
   /**
+   * Deletes a whole batch of job ids in one statement.
+   *
+   * Runs inside the claim transaction, so collapsing N deletes into one keeps
+   * the row locks held for a fraction of the time.
+   *
+   * Returns the number of deleted rows.
+   */
+  @Transactional
+  open fun deleteByJobIds(jobIds: List<Long>): Int {
+    if (jobIds.isEmpty()) return 0
+
+    val placeholders = jobIds.joinToString(",") { "?" }
+    val sql = "DELETE FROM ${tables.readyExecutions} WHERE job_id IN ($placeholders)"
+
+    return jdbcTemplate.prepareStatement(sql) { ps ->
+      jobIds.forEachIndexed { index, jobId -> ps.setLong(index + 1, jobId) }
+      ps.executeUpdate()
+    }
+  }
+
+  /**
    * Counts jobs in a specific queue
    */
   fun countByQueueName(queueName: String): Long {

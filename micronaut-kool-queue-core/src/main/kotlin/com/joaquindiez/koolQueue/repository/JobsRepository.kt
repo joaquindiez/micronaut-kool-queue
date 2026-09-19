@@ -209,6 +209,30 @@ class JobsRepository (
     }
   }
 
+  /**
+   * Loads several jobs by id in one query.
+   *
+   * The poller used to call [findById] once per claimed job, re-reading rows it
+   * had just selected. Result order is not guaranteed, so callers that care
+   * about priority order should re-order by their own id list.
+   */
+  fun findAllByIds(ids: List<Long>): List<KoolQueueJobs> {
+    if (ids.isEmpty()) return emptyList()
+
+    val placeholders = ids.joinToString(",") { "?" }
+    val sql = "SELECT * FROM ${tables.jobs} WHERE id IN ($placeholders)"
+
+    return jdbcTemplate.prepareStatement(sql) { statement ->
+      ids.forEachIndexed { index, id -> statement.setLong(index + 1, id) }
+      val resultSet = statement.executeQuery()
+      val jobs = mutableListOf<KoolQueueJobs>()
+      while (resultSet.next()) {
+        jobs.add(resultToJob(resultSet))
+      }
+      jobs
+    }
+  }
+
   fun findByActiveJobId(activeJobId: UUID): KoolQueueJobs? {
     val sql = """
             SELECT *

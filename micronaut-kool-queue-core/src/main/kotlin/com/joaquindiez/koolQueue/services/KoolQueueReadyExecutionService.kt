@@ -15,7 +15,6 @@
  */
 package com.joaquindiez.koolQueue.services
 
-import com.joaquindiez.koolQueue.domain.KoolQueueClaimedExecutions
 import com.joaquindiez.koolQueue.domain.KoolQueueJobs
 import com.joaquindiez.koolQueue.domain.KoolQueueReadyExecution
 import com.joaquindiez.koolQueue.repository.KoolQueueClaimedExecutionsRepository
@@ -110,10 +109,14 @@ open class KoolQueueReadyExecutionService(
       readyExecutionRepository.pollJobsForUpdateByQueues(queueNames, limit)
     }
 
-    jobIds.forEach { jobId ->
-      claimedExecutionsRepository.save(KoolQueueClaimedExecutions(jobId = jobId, processId = processId))
-      readyExecutionRepository.deleteByJobId(jobId)
-    }
+    if (jobIds.isEmpty()) return jobIds
+
+    // One INSERT and one DELETE for the whole batch instead of a pair per job.
+    // This runs inside the claim transaction, which holds the SKIP LOCKED row
+    // locks until it commits, so the round trips saved here are round trips no
+    // other worker spends waiting.
+    claimedExecutionsRepository.saveAll(jobIds, processId)
+    readyExecutionRepository.deleteByJobIds(jobIds)
 
     return jobIds
   }

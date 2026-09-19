@@ -180,6 +180,12 @@ class KoolQueueScheduledJob(
     val claimedJobIds = readyExecutionService.claimReadyJobs(configuredQueues, claimingProcessId, limit = capacity)
     logger.debug("Claimed ${claimedJobIds.size} job(s) to run (queues=$queueLabel, capacity=$capacity)")
 
+    // One query for the whole batch: these rows were just read by the claim, so
+    // re-reading them one id at a time was a round trip per job for data we had
+    // already seen. Iteration follows claimedJobIds, not the result set, to keep
+    // the priority order the poll established.
+    val claimedJobs = taskService.findAllByIds(claimedJobIds).associateBy { it.id }
+
     for (jobId in claimedJobIds) {
       // ✅ CHECK: State before processing each job
       if (!applicationContext.isRunning || !isDatabaseAvailable()) {
@@ -187,7 +193,7 @@ class KoolQueueScheduledJob(
         return
       }
 
-      val job = taskService.findById(jobId)
+      val job = claimedJobs[jobId]
       if (job != null) {
         // Hand off to the execution pool instead of running inline: this method
         // is the polling tick, and running jobs here serialises the whole batch

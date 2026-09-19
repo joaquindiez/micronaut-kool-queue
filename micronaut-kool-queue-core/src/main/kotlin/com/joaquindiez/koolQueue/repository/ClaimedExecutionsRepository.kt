@@ -23,6 +23,7 @@ import io.micronaut.transaction.annotation.Transactional
 import jakarta.inject.Singleton
 import java.sql.ResultSet
 import java.sql.Timestamp
+import java.time.Instant
 
 
 @Singleton
@@ -64,6 +65,35 @@ open class KoolQueueClaimedExecutionsRepository(
       } else {
         throw RuntimeException("Failed to insert claimed execution $claimedExecution")
       }
+    }
+  }
+
+  /**
+   * Claims a whole batch in one multi-row INSERT.
+   *
+   * The per-job [save] costs a round trip each, which is the dominant cost of a
+   * claim once the batch is more than one job: the claim transaction holds the
+   * `FOR UPDATE SKIP LOCKED` locks for its whole duration, so every extra round
+   * trip keeps other workers waiting that much longer.
+   *
+   * Returns the number of rows inserted.
+   */
+  @Transactional
+  open fun saveAll(jobIds: List<Long>, processId: Long): Int {
+    if (jobIds.isEmpty()) return 0
+
+    val now = Timestamp.from(Instant.now())
+    val values = jobIds.joinToString(",") { "(?, ?, ?)" }
+    val sql = "INSERT INTO ${tables.claimedExecutions} (job_id, process_id, created_at) VALUES $values"
+
+    return jdbcTemplate.prepareStatement(sql) { ps ->
+      var paramIndex = 1
+      jobIds.forEach { jobId ->
+        ps.setLong(paramIndex++, jobId)
+        ps.setLong(paramIndex++, processId)
+        ps.setTimestamp(paramIndex++, now)
+      }
+      ps.executeUpdate()
     }
   }
 

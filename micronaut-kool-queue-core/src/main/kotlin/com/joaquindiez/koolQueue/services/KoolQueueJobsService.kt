@@ -53,6 +53,15 @@ open class KoolQueueJobsService(
     return this.jobsRepository.findById(id)
   }
 
+  /**
+   * Loads several jobs in one query. Used by the poller to fetch a whole
+   * claimed batch instead of one round trip per job.
+   */
+  @Transactional
+  open fun findAllByIds(ids: List<Long>): List<KoolQueueJobs> {
+    return this.jobsRepository.findAllByIds(ids)
+  }
+
   @Transactional
   open fun findAllTasks(): List<KoolQueueJobs> {
     return this.jobsRepository.findAll()

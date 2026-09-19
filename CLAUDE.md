@@ -28,9 +28,10 @@ Micronaut-Kool-Queue is a database-based queuing backend for Micronaut Framework
 ```
 
 ### Publishing
+Distribution goes through JitPack, which builds on demand from a git tag —
+there is no publishing task to a remote repository, and nothing to run in CI.
 ```bash
-./gradlew publish
-./gradlew publishToSonatype
+./gradlew :micronaut-kool-queue-core:publishToMavenLocal   # to try a build locally
 ```
 
 ## Architecture

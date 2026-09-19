@@ -96,6 +96,18 @@ Step 2. Add the dependency
 Kool Queue was designed for the highest throughput when used with PostgreSQL 9.5+, as it supports FOR UPDATE SKIP LOCKED.
 You can use it with older versions, but in that case, you might run into lock waits if you run multiple workers for the same queue.
 
+A worker's throughput is governed by `job-execution-threads`: the poller claims
+exactly as many jobs as the execution pool has free slots, and is woken as soon
+as a job finishes, so the polling interval does not cap it. Expect roughly
+`job-execution-threads / job duration` jobs per second per worker.
+
+There is a reproducible benchmark in [docs/benchmark.md](docs/benchmark.md),
+including a Solid Queue comparison:
+
+```bash
+./gradlew :micronaut-kool-queue-sample:benchmark
+```
+
 
 # Architecture
 

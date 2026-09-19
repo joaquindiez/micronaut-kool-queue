@@ -1,0 +1,15 @@
+default: &default
+  adapter: postgresql
+  host: localhost
+  database: postgres
+  username: postgres
+  password: changeme
+  pool: 40
+  schema_search_path: solid_bench,public
+
+development:
+  <<: *default
+test:
+  <<: *default
+production:
+  <<: *default

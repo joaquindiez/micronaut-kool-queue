@@ -93,3 +93,29 @@ micronaut {
 
 
 
+
+// The benchmark is a JUnit test so it can boot the real application context,
+// but it needs a live PostgreSQL and takes minutes, so `test` skips it and a
+// dedicated task runs it. See docs/benchmark.md.
+tasks.named<Test>("test") {
+  useJUnitPlatform {
+    excludeTags("benchmark")
+  }
+}
+
+tasks.register<Test>("benchmark") {
+  group = "verification"
+  description = "Runs the throughput benchmark against a PostgreSQL on localhost."
+  testClassesDirs = sourceSets["test"].output.classesDirs
+  classpath = sourceSets["test"].runtimeClasspath
+  useJUnitPlatform {
+    includeTags("benchmark")
+  }
+  // Tuned with BENCH_* environment variables, which Gradle does not track as
+  // task inputs; without this a second run with different settings would be
+  // skipped as up-to-date.
+  outputs.upToDateWhen { false }
+  testLogging {
+    showStandardStreams = true
+  }
+}

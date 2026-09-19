@@ -34,6 +34,15 @@ there is no publishing task to a remote repository, and nothing to run in CI.
 ./gradlew :micronaut-kool-queue-core:publishToMavenLocal   # to try a build locally
 ```
 
+### Benchmark
+Not part of `build`: it needs a PostgreSQL on localhost and takes minutes.
+```bash
+./gradlew :micronaut-kool-queue-sample:benchmark   # tuned with BENCH_* env vars
+```
+See `docs/benchmark.md` for the method, the Solid Queue comparison and the
+two traps (the producer becoming the bottleneck; changes that only show up as
+database round-trips, not throughput).
+
 ## Architecture
 
 ### Core Components

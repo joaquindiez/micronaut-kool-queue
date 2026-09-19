@@ -1,0 +1,44 @@
+# Benchmark environment: a plain PostgreSQL on localhost rather than
+# Testcontainers, so container startup does not cloud the numbers, and the
+# Ruby/Solid Queue benchmark can point at the very same database.
+# See docs/benchmark.md.
+micronaut:
+  scheduler:
+    kool-queue:
+      # The throughput dial. Matches the `threads:` given to the Solid Queue
+      # worker in the comparison, so both sides get the same concurrency.
+      job-execution-threads: 5
+      max-concurrent-tasks: 8
+      schema: kool_queue
+      queues:
+        - bench
+
+datasources:
+  default:
+    url: ${BENCH_DB_URL:`jdbc:postgresql://localhost:5432/postgres`}
+    username: ${BENCH_DB_USER:postgres}
+    password: ${BENCH_DB_PASSWORD:changeme}
+    driver-class-name: org.postgresql.Driver
+    db-type: postgres
+    dialect: POSTGRES
+    # Every running job holds a connection while it updates its own status,
+    # so leave headroom above job-execution-threads for the poller and reaper.
+    maximum-pool-size: 30
+
+jpa:
+  default:
+    entity-scan:
+      packages:
+        - com.freesoullabs.domain
+    properties:
+      hibernate:
+        hbm2ddl:
+          auto: update
+
+# Kool Queue logs a line per enqueue at INFO. Left on, the benchmark would
+# largely measure logging.
+logger:
+  levels:
+    ROOT: WARN
+    com.joaquindiez.koolQueue: WARN
+    io.micronaut: WARN

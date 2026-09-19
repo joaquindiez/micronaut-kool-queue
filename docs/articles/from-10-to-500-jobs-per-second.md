@@ -100,9 +100,8 @@ worse than no number at all.
 
 Here is the baseline, with the default configuration of five execution threads:
 
-| | empty job | 100 ms job |
-|---|---:|---:|
-| Baseline | 10.0/s | 9.9/s |
+- **Empty job — 10.0 jobs/second.**
+- **Job that sleeps 100 ms — 9.9 jobs/second.**
 
 Stare at that for a second. A job that does *nothing* and a job that sleeps for
 a tenth of a second performed **identically**. That is the unmistakable
@@ -137,10 +136,10 @@ One subtlety that took a while to get right: the pool reserves a slot **when a
 job is submitted**, not when it starts running. Otherwise two polls in quick
 succession can both count the same free slot and you overcommit.
 
-| | empty job | 100 ms job |
-|---|---:|---:|
-| Baseline | 10.0/s | 9.9/s |
-| **+ capacity-based claim & execution pool** | **49.9/s** | **24.9/s** |
+Against the baseline:
+
+- **Empty job — 10.0/s → 49.9/s.**
+- **100 ms job — 9.9/s → 24.9/s.**
 
 Five times better, and now the two workloads finally disagree with each other.
 But 24.9/s for 100 ms jobs is suspiciously close to *half* of the theoretical
@@ -165,11 +164,15 @@ you: the byte stays in the pipe until someone reads it. The flag is cleared when
 the poll *starts*, not when it ends, so a wake-up that arrives mid-poll counts
 as pending instead of being silently swallowed.
 
-| | empty job | 100 ms job |
-|---|---:|---:|
-| Baseline | 10.0/s | 9.9/s |
-| + capacity-based claim & execution pool | 49.9/s | 24.9/s |
-| **+ wake the poller on completion** | **463.9/s** | **47.0/s** |
+![End-to-end throughput after each step, 5 execution threads, PostgreSQL 16.13,
+mean of three warm runs. Empty job: baseline 10.0/s, claim by free capacity
+49.9/s, wake on completion 463.9/s. Job sleeping 100 ms: baseline 9.9/s, claim
+by free capacity 24.9/s, wake on completion 47.0/s, against a theoretical
+ceiling of 50/s. The two panels have their own scales.](assets/optimisation-history.png)
+
+*Note the two panels have different scales: the empty job runs to 500/s, the
+100 ms job to 60/s. The dashed line is the ceiling the configured concurrency
+allows.*
 
 **47.0/s is 94% of the theoretical ceiling** of the configured concurrency. The
 polling interval is no longer a factor: throughput is now governed by thread
@@ -184,12 +187,12 @@ inserts into `claimed_executions`, N deletes from `ready_executions`, and N
 selects to re-read rows the claim query had *just* read. Collapsing them into a
 multi-row insert, a `DELETE ... IN`, and a `SELECT ... IN`:
 
-| statements per 200 jobs | before | after |
-|---|---:|---:|
-| INSERT claimed_executions | 201 | 71 |
-| DELETE ready_executions | 201 | 71 |
-| SELECT job by id | 201 | 71 |
-| **total** | **603** | **213** |
+Counting statements with `log_statement = 'all'`, per 200 jobs:
+
+- `INSERT` into `claimed_executions` — **201 → 71**
+- `DELETE` from `ready_executions` — **201 → 71**
+- `SELECT` job by id — **201 → 71**
+- **Total — 603 → 213 statements**
 
 2.8× fewer round trips. And the effect on end-to-end throughput was…
 **nothing measurable**: 985.7 ± 259.3 against 919.4 ± 243.4 jobs/s. Well within
@@ -214,11 +217,12 @@ fair. Same machine, same PostgreSQL 16.13 instance, same method, five worker
 threads on both sides, three repetitions, Solid Queue 1.7.0. Numbers are
 mean ± standard deviation in jobs/second:
 
-| | Kool Queue | Solid Queue | |
-|---|---:|---:|---:|
-| 100 ms job | 47.5 ± 0.8 | 39.4 ± 0.5 | 1.2× |
-| Empty job | 507.6 ± 133.2 | 81.2 ± 1.9 | 6.3× |
-| Enqueue only | ~1,150 | 275 | 4.2× |
+![Kool Queue against Solid Queue 1.7.0 on the same machine and database, five
+worker threads each, jobs per second, mean plus or minus standard deviation.
+100 ms job: 47.5 ± 0.8 against 39.4 ± 0.5, a ratio of 1.2×. Empty job:
+507.6 ± 133.2 against 81.2 ± 1.9, a ratio of 6.3×. Enqueue only: about 1,150
+against about 275, a ratio of 4.2×. Each row has its own
+axis.](assets/vs-solid-queue.png)
 
 Expressed as per-job overhead outside the job body: roughly **5 ms for Kool
 Queue against 27 ms for Solid Queue**.

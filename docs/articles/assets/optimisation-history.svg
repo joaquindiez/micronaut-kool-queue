@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 360" width="940" height="360" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+  <rect x="0" y="0" width="940" height="360" fill="#FFFFFF"/>
+
+  <text x="40" y="44" font-size="17" font-weight="600" fill="#16181D">Where the throughput came from</text>
+  <text x="40" y="66" font-size="11.5" fill="#6C7079">End-to-end jobs per second · 5 execution threads · PostgreSQL 16.13 · mean of 3 warm runs</text>
+
+  <!-- panel headers -->
+  <text x="262" y="104" font-size="13" font-weight="600" fill="#16181D">Empty job</text>
+  <text x="532" y="104" font-size="10.5" fill="#9AA0A6" text-anchor="end">own scale, to 500/s</text>
+  <text x="620" y="104" font-size="13" font-weight="600" fill="#16181D">100 ms job</text>
+  <text x="890" y="104" font-size="10.5" fill="#9AA0A6" text-anchor="end">own scale, to 60/s</text>
+
+  <!-- baselines -->
+  <path d="M262,124 V292 M620,124 V292" stroke="#E3E1DC" stroke-width="1" fill="none"/>
+  <path d="M262,292 H532 M620,292 H890" stroke="#E3E1DC" stroke-width="1" fill="none"/>
+
+  <!-- ceiling marker, panel B -->
+  <path d="M845,124 V300" stroke="#9AA0A6" stroke-width="1" stroke-dasharray="4 3" fill="none"/>
+  <text x="890" y="330" font-size="10.5" fill="#6C7079" text-anchor="end">ceiling: 5 threads ÷ 100 ms = 50/s</text>
+
+  <!-- row labels -->
+  <g font-size="12.5" fill="#16181D">
+    <text x="40" y="154">Baseline</text>
+    <text x="40" y="212">+ claim by free capacity</text>
+    <text x="40" y="270">+ wake on completion</text>
+  </g>
+
+  <!-- panel A bars: scale 500 over 270px -->
+  <g>
+    <path d="M262,139 H264.7 Q267.4,139 267.4,141.7 V158.3 Q267.4,161 264.7,161 H262 Z" fill="#5FB8A6"/>
+    <path d="M262,197 H285 Q289,197 289,201 V215 Q289,219 285,219 H262 Z" fill="#219683"/>
+    <path d="M262,255 H508 Q512,255 512,259 V273 Q512,277 508,277 H262 Z" fill="#0B5A4E"/>
+  </g>
+  <g font-size="12" font-weight="600" fill="#16181D">
+    <text x="276" y="154">10.0</text>
+    <text x="297" y="212">49.9</text>
+    <text x="520" y="270">463.9</text>
+  </g>
+
+  <!-- panel B bars: scale 60 over 270px -->
+  <g>
+    <path d="M620,139 H660.6 Q664.6,139 664.6,143 V157 Q664.6,161 660.6,161 H620 Z" fill="#5FB8A6"/>
+    <path d="M620,197 H728.1 Q732.1,197 732.1,201 V215 Q732.1,219 728.1,219 H620 Z" fill="#219683"/>
+    <path d="M620,255 H827.5 Q831.5,255 831.5,259 V273 Q831.5,277 827.5,277 H620 Z" fill="#0B5A4E"/>
+  </g>
+  <g font-size="12" font-weight="600" fill="#16181D">
+    <text x="673" y="154">9.9</text>
+    <text x="740" y="212">24.9</text>
+    <text x="840" y="270">47.0</text>
+  </g>
+
+  <!-- ticks -->
+  <g font-size="10.5" fill="#9AA0A6">
+    <text x="262" y="308">0</text>
+    <text x="397" y="308" text-anchor="middle">250</text>
+    <text x="532" y="308" text-anchor="end">500</text>
+    <text x="620" y="308">0</text>
+    <text x="755" y="308" text-anchor="middle">30</text>
+    <text x="890" y="308" text-anchor="end">60</text>
+  </g>
+</svg>

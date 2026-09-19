@@ -272,7 +272,7 @@ micronaut:
 |----------|---------|-------------|
 | `enabled` | `true` | Master switch. When `false` the scheduler does not start and **no jobs are processed**. |
 | `max-concurrent-tasks` | `2` | Maximum number of **scheduler tasks** (the ready poller, the scheduled-jobs poller, the reaper) running at once. This is not the job concurrency — see `job-execution-threads`. |
-| `job-execution-threads` | `5` | Size of the pool that runs jobs, and the largest batch the poller claims per tick. **This is the throughput dial.** The poller ticks 10 times a second, so a worker tops out near `job-execution-threads / job duration`, and never above `10 * job-execution-threads` jobs/s. Each running job holds a database connection while it updates its status, so keep this comfortably below the datasource's `maximum-pool-size`. |
+| `job-execution-threads` | `5` | Size of the pool that runs jobs, and the largest batch the poller claims per tick. **This is the throughput dial.** A worker tops out near `job-execution-threads / job duration`: the poller is woken as soon as a job finishes, so the polling interval does not cap throughput. Each running job holds a database connection while it updates its status, so keep this comfortably below the datasource's `maximum-pool-size`. |
 | `default-interval` | `30s` | Default interval between task executions (`30s`, `5m`, `1h`). |
 | `default-initial-delay` | `10s` | Delay before the first execution after startup. |
 | `shutdown-timeout-seconds` | `30` | Max seconds to wait for in-flight jobs during graceful shutdown. |

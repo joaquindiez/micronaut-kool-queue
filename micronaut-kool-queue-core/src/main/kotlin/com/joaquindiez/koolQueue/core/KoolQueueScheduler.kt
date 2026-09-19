@@ -110,6 +110,26 @@ class KoolQueueScheduler(
     return TaskRegistration(name, scheduledFuture, this)
   }
 
+  /**
+   * Asks a registered task to run now instead of waiting for its next tick.
+   *
+   * Used by the job execution pool: when a slot frees up there is capacity to
+   * claim more work, and waiting out the remaining poll interval would leave a
+   * worker idle with jobs queued. This is what decouples throughput from the
+   * polling clock — the poll rate follows the rate at which jobs finish.
+   *
+   * Requests are latched on the task, so one arriving mid-execution is honoured
+   * when the current run finishes rather than being dropped. Unknown task names
+   * are ignored: a wake-up can legitimately race task registration at startup.
+   */
+  fun wakeUp(taskName: String) {
+    if (isShuttingDown || !applicationContext.isRunning) return
+
+    val task = registeredTasks[taskName] ?: return
+    task.wakeUpRequested.set(true)
+    executeTask(task)
+  }
+
   private fun startPeriodicExecution(task: RegisteredTask): ScheduledFuture<*> {
     val executor = Executors.newScheduledThreadPool(1) { r ->
       task.currentProcessId = registerCurrentProcess(
@@ -157,6 +177,11 @@ class KoolQueueScheduler(
                   logger.debug("Task '${task.name}' cancelled - shutdown in progress")
                   return@launch
                 }
+
+                // About to poll, so any pending request is satisfied by this run.
+                // Clearing it here (not on completion) means a wake-up arriving
+                // during the run is kept and re-triggers below.
+                task.wakeUpRequested.set(false)
 
                 task.taskFunction()
                 executionStats.incrementSuccess()
@@ -212,6 +237,15 @@ class KoolQueueScheduler(
         } finally {
           // ✅ Release global semaphore
           semaphore.release()
+        }
+
+        // A wake-up that arrived while this run was in flight (or that was
+        // dropped because a semaphore was saturated) is honoured now that the
+        // permits are back. Re-entry goes through scope.launch, so this is a
+        // fresh coroutine rather than recursion on this stack.
+        if (task.wakeUpRequested.compareAndSet(true, false) && !isShuttingDown && applicationContext.isRunning) {
+          logger.debug("Re-running task '${task.name}' for a pending wake-up")
+          executeTask(task)
         }
 
       } else {

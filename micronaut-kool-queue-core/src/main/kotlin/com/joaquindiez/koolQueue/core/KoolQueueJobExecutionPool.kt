@@ -19,6 +19,7 @@ import com.joaquindiez.koolQueue.config.KoolQueueSchedulerConfig
 import jakarta.annotation.PreDestroy
 import jakarta.inject.Singleton
 import org.slf4j.LoggerFactory
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ThreadPoolExecutor
@@ -53,6 +54,8 @@ open class KoolQueueJobExecutionPool(
 
   private val inFlight = AtomicInteger(0)
 
+  private val idleListeners = CopyOnWriteArrayList<() -> Unit>()
+
   private val executor: ThreadPoolExecutor = Executors.newFixedThreadPool(size) { runnable ->
     Thread(runnable, "kool-queue-job-executor").apply { isDaemon = true }
   } as ThreadPoolExecutor
@@ -80,6 +83,7 @@ open class KoolQueueJobExecutionPool(
           work()
         } finally {
           inFlight.decrementAndGet()
+          notifyIdle()
         }
       }
       true
@@ -87,6 +91,30 @@ open class KoolQueueJobExecutionPool(
       inFlight.decrementAndGet()
       logger.warn("Job execution pool rejected a job (shutting down?)", e)
       false
+    }
+  }
+
+  /**
+   * Registers a callback fired whenever a job finishes and a slot frees up.
+   *
+   * The poller uses this to claim again immediately instead of waiting out the
+   * rest of its interval, which is what lets throughput track how fast jobs
+   * complete rather than the polling clock.
+   */
+  fun onIdle(listener: () -> Unit) {
+    idleListeners.add(listener)
+  }
+
+  private fun notifyIdle() {
+    // Runs on the worker thread that just finished a job. Listeners must be
+    // cheap and must not throw, or they would take the pool thread down with
+    // them — hence the catch.
+    idleListeners.forEach { listener ->
+      try {
+        listener()
+      } catch (e: Exception) {
+        logger.warn("Idle listener failed", e)
+      }
     }
   }
 

@@ -24,6 +24,7 @@ import com.joaquindiez.koolQueue.core.RegisteredTask
 import com.joaquindiez.koolQueue.domain.KoolQueueJobs
 import io.micronaut.context.BeanContext
 import io.micronaut.json.JsonMapper
+import jakarta.annotation.PostConstruct
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
 import jakarta.persistence.EntityManagerFactory
@@ -46,6 +47,18 @@ class KoolQueueScheduledJob(
   private val reaperService: KoolQueueReaperService,
   private val executionPool: KoolQueueJobExecutionPool,
    ) {
+
+  /**
+   * Wires the execution pool back to the poller: every time a job finishes, ask
+   * the ready task to run again rather than waiting out the rest of its 0.1s
+   * interval. Without this the claim rate is capped by the polling clock, so a
+   * worker could not exceed `10 * jobExecutionThreads` jobs/s however quickly
+   * its jobs completed.
+   */
+  @PostConstruct
+  fun registerWakeUpOnJobCompletion() {
+    executionPool.onIdle { scheduler.wakeUp(READY_TASK_NAME) }
+  }
 
   companion object {
     // Task names referenced both by the @KoolQueueTask annotation and at runtime

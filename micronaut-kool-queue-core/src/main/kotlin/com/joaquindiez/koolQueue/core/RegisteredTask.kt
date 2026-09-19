@@ -19,6 +19,7 @@ import java.time.Instant
 import kotlin.time.Duration
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.Semaphore
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
@@ -35,6 +36,17 @@ data class RegisteredTask(
   // Individual semaphore for this task
   val semaphore = Semaphore(maxConcurrency)
   val activeExecutions = AtomicInteger(0)
+
+  /**
+   * Set when something asks this task to run ahead of its next scheduled tick.
+   *
+   * It is a latch rather than a direct call so a wake-up is never lost: if it
+   * arrives while the task is already running (or while concurrency limits are
+   * saturated) the flag survives, and whoever finishes re-runs the task instead
+   * of leaving the request to expire. Same idea as the self-pipe Solid Queue
+   * writes to — the byte stays in the pipe until the sleep reads it.
+   */
+  val wakeUpRequested = AtomicBoolean(false)
 }
 
 class TaskRegistration(

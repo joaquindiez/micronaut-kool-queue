@@ -76,40 +76,49 @@ Write-up + reproducible benchmark: [LINK]
 
 ## LinkedIn
 
-Attach `assets/optimisation-history.png`.
+Attach `assets/optimisation-history.png`. Tag **Micronaut Framework** on the
+paragraph that names it.
 
-> I shipped a background job queue for Micronaut. It worked. Then I benchmarked
-> it and discovered it had never done what I designed it to do.
+Angle: the method first, the library as the case study — LinkedIn's audience is
+mostly not a JVM audience, and the benchmarking lesson travels where "my Kotlin
+queue got faster" does not. It also withholds the fix, so the click is the only
+way to get it. (The earlier full-story version is in git history, commit
+`ed0657c`.)
+
+> Two numbers in a benchmark matched, and that was the bug.
 >
-> The number that gave it away was not a slow one. It was two numbers that
-> matched: an empty job ran at 10.0 jobs/second, and a job that sleeps for 100
-> milliseconds ran at 9.9. Identical performance from workloads that differ by a
-> factor of infinity is the signature of a system bound by its own clock rather
-> than by the work it is doing.
+> An empty job ran at 10.0 jobs per second. A job that sleeps for 100
+> milliseconds ran at 9.9 jobs per second. Two workloads that differ by a factor
+> of infinity, performing identically. That does not mean a system is
+> consistent. It means you are not measuring the work at all — you are measuring
+> a clock.
 >
-> The cause was three lines deep in the poller: it claimed one job per tick, and
-> it ticked every 0.1 seconds. Ten jobs a second, forever, no matter how much
-> concurrency was configured. I had built five lanes and put a one-car toll
-> booth at the entrance. I had also read that code many times without seeing it.
+> That was my own library: a Postgres-backed job queue for Micronaut that I had
+> shipped, used, and read the source of many times without ever seeing it.
 >
-> Two changes fixed it, both borrowed from Solid Queue in the Rails world:
-> claim as many jobs as the execution pool has free slots rather than a
-> hard-coded constant, and wake the poller the moment a job finishes instead of
-> letting it wait out the rest of its interval. End-to-end throughput went from
-> 10 to 464 jobs per second, and for realistic 100 ms jobs it now reaches 94% of
-> the ceiling the configured concurrency allows.
+> Three things I now check before I trust a benchmark.
 >
-> The more useful lesson came from the third change. It cut database round trips
-> by 2.8x and moved throughput by nothing measurable, because PostgreSQL was
-> running on the same machine. That is not a failed optimisation — it is a
-> benchmark honestly reporting its own blind spot. I reported the statement
-> count, which is deterministic, instead of a throughput delta that JIT noise
-> eats.
+> 1. Does the headline metric survive the system getting faster? Mine didn't. It
+> timed the enqueue phase, then the drain phase, and reported 30,000 jobs/s —
+> because once the worker keeps up, the queue drains while it is still being
+> filled. The metric broke precisely when the system started working properly.
 >
-> A benchmark's first job is to find your bugs, not to produce a number for a
-> landing page.
+> 2. Do two workloads that should differ actually differ? This is the cheapest
+> bug detector I know, and it is what caught mine. Run something trivial and
+> something slow. If the numbers agree, something other than your code is
+> setting the pace.
 >
-> Full write-up, the comparison against Solid Queue with its caveats, and a
-> reproducible harness: [LINK]
+> 3. Can the metric you report even detect the change you made? One of my fixes
+> cut database round trips by 2.8x and moved throughput by nothing measurable,
+> because PostgreSQL was running on the same machine. So I reported the
+> statement count, which is deterministic, rather than a throughput delta that
+> measurement noise eats.
 >
-> #Micronaut #Kotlin #PostgreSQL #JVM #Performance
+> None of this is exotic. It is the difference between a benchmark that flatters
+> you and one that finds your bugs — which, once I let it, took that queue from
+> 10 to 464 jobs a second.
+>
+> The full story, the two fixes, and an honest comparison against Solid Queue:
+> [LINK]
+>
+> #Benchmarking #Performance #PostgreSQL #Micronaut #SoftwareEngineering

@@ -51,6 +51,18 @@ three periodic tasks: a **dispatcher** that promotes scheduled jobs when they
 come due, a **worker** that atomically claims ready jobs and runs them, and a
 **reaper** that rescues jobs orphaned by a crashed worker.
 
+![Kool Queue architecture: processLater writes a permanent record into
+kool_queue_jobs and puts the job in either ready_executions or
+scheduled_executions; a dispatcher promotes scheduled jobs when they are due; a
+worker claims ready jobs with FOR UPDATE SKIP LOCKED, limited to the execution
+pool's free capacity, inserting into claimed_executions and deleting from ready
+in one transaction; the pool runs the job and wakes the poller as soon as a slot
+frees up; outcomes are done, retry with backoff, or the dead-letter table; a
+reaper rescues the claims of workers that stopped heartbeating.](assets/kool-queue-architecture.png)
+
+*Six tables, three periodic tasks. The teal loop on the right is the part this
+article is about — and the part I had got wrong.*
+
 It worked. Jobs went in, jobs came out, retries backed off exponentially, dead
 workers got reaped. I was happy with it.
 
@@ -141,9 +153,10 @@ Into the clock, again. With a 0.1 s tick, a worker can never exceed
 Half of every cycle was spent waiting for the next tick while slots sat free.
 
 So the pool now notifies the poller the moment a job finishes, and the poller
-claims again immediately. It is Solid Queue's `on_idle: -> { wake_up }`, adapted
-to a coroutine-based scheduler: instead of a self-pipe interrupting a sleep, a
-wake-up sets a latch on the task and launches an execution.
+claims again immediately — the teal loop in the diagram above. It is Solid
+Queue's `on_idle: -> { wake_up }`, adapted to a coroutine-based scheduler:
+instead of a self-pipe interrupting a sleep, a wake-up sets a latch on the task
+and launches an execution.
 
 That latch is the whole trick. A wake-up can arrive while the task is already
 running, or find the semaphores saturated — in both cases the flag survives, and

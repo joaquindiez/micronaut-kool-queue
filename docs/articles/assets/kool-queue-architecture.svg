@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1010" width="900" height="1010" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,1 L9,5 L0,9 z" fill="#B9BDC4"/>
+    </marker>
+    <marker id="ar-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,1 L9,5 L0,9 z" fill="#0E7C6B"/>
+    </marker>
+    <marker id="ar-danger" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,1 L9,5 L0,9 z" fill="#9B3D36"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="900" height="1010" fill="#FFFFFF"/>
+
+  <!-- title -->
+  <text x="40" y="40" font-size="17" font-weight="600" fill="#16181D">How a job flows through Kool Queue</text>
+  <text x="40" y="62" font-size="11.5" fill="#6C7079">Postgres tables in beige · in-process periodic tasks outlined · the loop that governs throughput in teal</text>
+
+  <!-- ============ edges (drawn first, boxes paint over the ends) ============ -->
+  <g fill="none" stroke="#B9BDC4" stroke-width="1.4" marker-end="url(#ar)">
+    <path d="M328,119 H170 V196"/>
+    <path d="M450,146 V326"/>
+    <path d="M572,119 H730 V196"/>
+    <path d="M170,264 V326"/>
+    <path d="M292,350 H324"/>
+    <path d="M450,394 V446"/>
+    <path d="M450,568 V626"/>
+    <path d="M450,694 V746"/>
+    <path d="M170,536 V586"/>
+    <path d="M292,622 H304 V374 H324"/>
+    <path d="M450,838 V906"/>
+    <path d="M48,942 H20 V232 H44"/>
+  </g>
+  <path d="M320,508 H296" fill="none" stroke="#B9BDC4" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+  <path d="M360,838 C315,876 245,886 174,904" fill="none" stroke="#B9BDC4" stroke-width="1.4" marker-end="url(#ar)"/>
+  <path d="M540,838 C582,876 656,886 726,904" fill="none" stroke="#9B3D36" stroke-width="1.4" marker-end="url(#ar-danger)"/>
+
+  <!-- the throughput loop -->
+  <path d="M580,794 H690 V470 H584" fill="none" stroke="#0E7C6B" stroke-width="2" marker-end="url(#ar-accent)"/>
+
+  <!-- edge labels -->
+  <g font-size="11" fill="#6C7079">
+    <text x="249" y="111" text-anchor="middle">scheduledAt set</text>
+    <text x="651" y="111" text-anchor="middle">INSERT record</text>
+    <text x="460" y="242">immediate</text>
+    <text x="258" y="866" text-anchor="middle">failure · attempts left</text>
+    <text x="460" y="882">success</text>
+    <text x="644" y="866" text-anchor="middle" fill="#9B3D36">retry budget exhausted</text>
+  </g>
+  <g font-size="11.5" fill="#0E7C6B">
+    <text x="704" y="562">a job finishes →</text>
+    <text x="704" y="578">poller wakes and claims</text>
+    <text x="704" y="594">as many as the pool can run</text>
+  </g>
+
+  <!-- ============ nodes ============ -->
+
+  <!-- producer -->
+  <rect x="328" y="92" width="244" height="54" rx="8" fill="#16181D"/>
+  <text x="344" y="117" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#FFFFFF">processLater(data)</text>
+  <text x="344" y="134" font-size="11" fill="#9EA3AB">your application code</text>
+
+  <!-- scheduled executions -->
+  <rect x="48" y="200" width="244" height="64" rx="8" fill="#F5F3EF" stroke="#DAD5CC" stroke-width="1.2"/>
+  <text x="64" y="228" font-size="11.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#16181D">scheduled_executions</text>
+  <text x="64" y="248" font-size="11" fill="#6C7079">run later · retry backoff</text>
+
+  <!-- jobs -->
+  <rect x="608" y="200" width="244" height="64" rx="8" fill="#F5F3EF" stroke="#DAD5CC" stroke-width="1.2"/>
+  <text x="624" y="228" font-size="11.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#16181D">kool_queue_jobs</text>
+  <text x="624" y="248" font-size="11" fill="#6C7079">permanent record · every status</text>
+
+  <!-- dispatcher -->
+  <rect x="48" y="330" width="244" height="56" rx="28" fill="#FFFFFF" stroke="#16181D" stroke-width="1.4"/>
+  <text x="70" y="354" font-size="12.5" font-weight="600" fill="#16181D">Dispatcher · every ~1s</text>
+  <text x="70" y="371" font-size="11" fill="#6C7079">promotes jobs that are due</text>
+
+  <!-- ready executions -->
+  <rect x="328" y="330" width="244" height="64" rx="8" fill="#F5F3EF" stroke="#DAD5CC" stroke-width="1.2"/>
+  <text x="344" y="358" font-size="11.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#16181D">ready_executions</text>
+  <text x="344" y="378" font-size="11" fill="#6C7079">ready to run now</text>
+
+  <!-- worker claim -->
+  <rect x="320" y="450" width="260" height="118" rx="10" fill="#FFFFFF" stroke="#16181D" stroke-width="1.6"/>
+  <text x="338" y="476" font-size="12.5" font-weight="600" fill="#16181D">Worker · claim</text>
+  <g font-size="10.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#3C4149">
+    <text x="338" y="499">SELECT ... ORDER BY priority</text>
+    <text x="338" y="516">FOR UPDATE SKIP LOCKED</text>
+    <text x="338" y="533" fill="#0E7C6B" font-weight="600">LIMIT = free capacity</text>
+    <text x="338" y="550">INSERT claimed + DELETE ready</text>
+  </g>
+
+  <!-- processes -->
+  <rect x="48" y="480" width="244" height="56" rx="8" fill="#F5F3EF" stroke="#DAD5CC" stroke-width="1.2"/>
+  <text x="64" y="504" font-size="11.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#16181D">processes</text>
+  <text x="64" y="522" font-size="11" fill="#6C7079">worker heartbeats</text>
+
+  <!-- reaper -->
+  <rect x="48" y="590" width="244" height="64" rx="32" fill="#FFFFFF" stroke="#16181D" stroke-width="1.4"/>
+  <text x="70" y="616" font-size="12.5" font-weight="600" fill="#16181D">Reaper · every 30s</text>
+  <text x="70" y="634" font-size="11" fill="#6C7079">rescues dead workers' claims</text>
+
+  <!-- claimed executions -->
+  <rect x="328" y="630" width="244" height="64" rx="8" fill="#F5F3EF" stroke="#DAD5CC" stroke-width="1.2"/>
+  <text x="344" y="658" font-size="11.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#16181D">claimed_executions</text>
+  <text x="344" y="678" font-size="11" fill="#6C7079">running right now</text>
+
+  <!-- execution pool -->
+  <rect x="320" y="750" width="260" height="88" rx="10" fill="#E8F4F1" stroke="#0E7C6B" stroke-width="1.6"/>
+  <text x="338" y="776" font-size="12.5" font-weight="600" fill="#0B5A4E">Job execution pool</text>
+  <text x="338" y="794" font-size="11" fill="#0B5A4E" opacity="0.85">job-execution-threads (default 5)</text>
+  <g fill="#0E7C6B" opacity="0.85">
+    <rect x="338" y="808" width="30" height="11" rx="3"/>
+    <rect x="374" y="808" width="30" height="11" rx="3"/>
+    <rect x="410" y="808" width="30" height="11" rx="3"/>
+    <rect x="446" y="808" width="30" height="11" rx="3"/>
+    <rect x="482" y="808" width="30" height="11" rx="3"/>
+  </g>
+
+  <!-- retry -->
+  <rect x="48" y="910" width="244" height="64" rx="8" fill="#FFFFFF" stroke="#DAD5CC" stroke-width="1.2"/>
+  <text x="64" y="938" font-size="12.5" font-weight="600" fill="#16181D">Retry with backoff</text>
+  <text x="64" y="956" font-size="11" fill="#6C7079">base × 2ⁿ, capped</text>
+
+  <!-- done -->
+  <rect x="328" y="910" width="244" height="64" rx="8" fill="#FFFFFF" stroke="#DAD5CC" stroke-width="1.2"/>
+  <text x="344" y="938" font-size="12.5" font-weight="600" fill="#16181D">Done</text>
+  <text x="344" y="956" font-size="11" fill="#6C7079">finished_at set · claim deleted</text>
+
+  <!-- failed -->
+  <rect x="608" y="910" width="244" height="64" rx="8" fill="#F5F3EF" stroke="#DAD5CC" stroke-width="1.2"/>
+  <text x="624" y="938" font-size="11.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#16181D">failed_executions</text>
+  <text x="624" y="956" font-size="11" fill="#6C7079">dead-letter</text>
+</svg>

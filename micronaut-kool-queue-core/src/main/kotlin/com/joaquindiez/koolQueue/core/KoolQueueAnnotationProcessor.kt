@@ -16,6 +16,7 @@
 package com.joaquindiez.koolQueue.core
 
 import io.micronaut.context.BeanContext
+import io.micronaut.context.annotation.Requires
 import io.micronaut.context.event.ApplicationEventListener
 import io.micronaut.context.event.StartupEvent
 import io.micronaut.core.order.Ordered
@@ -29,6 +30,10 @@ import kotlinx.coroutines.*
 
 
 @Singleton
+// Same condition as KoolQueueScheduler: this bean injects it, so it must
+// disappear with it. Otherwise enabled=false fails startup instead of
+// disabling Kool Queue. See issue #3.
+@Requires(property = "micronaut.scheduler.kool-queue.enabled", value = "true", defaultValue = "true")
 class KoolQueueAnnotationProcessor(
   private val scheduler: KoolQueueScheduler,
   private val beanContext: BeanContext

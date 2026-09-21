@@ -29,6 +29,10 @@ import io.micronaut.management.endpoint.annotation.Selector
 
 @Endpoint(id = "kool-queue-scheduler")
 @Requires(property = "micronaut.scheduler.kool-queue.enable-management-endpoints", value = "true", defaultValue = "true")
+// Same condition as KoolQueueScheduler: this bean injects it, so it must
+// disappear with it. Otherwise enabled=false fails startup instead of
+// disabling Kool Queue. See issue #3.
+@Requires(property = "micronaut.scheduler.kool-queue.enabled", value = "true", defaultValue = "true")
 class KoolQueueSchedulerEndpoint(
   private val scheduler: KoolQueueScheduler,
   private val taskService: KoolQueueJobsService

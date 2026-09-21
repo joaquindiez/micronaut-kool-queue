@@ -32,11 +32,16 @@ import com.joaquindiez.koolQueue.services.KoolQueueJobsService
 import com.joaquindiez.koolQueue.services.KoolQueueReadyExecutionService
 import com.joaquindiez.koolQueue.services.KoolQueueReaperService
 import io.micronaut.context.ApplicationContext
+import io.micronaut.context.annotation.Requires
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 
 
 @Singleton
+// Same condition as KoolQueueScheduler: this bean injects it, so it must
+// disappear with it. Otherwise enabled=false fails startup instead of
+// disabling Kool Queue. See issue #3.
+@Requires(property = "micronaut.scheduler.kool-queue.enabled", value = "true", defaultValue = "true")
 class KoolQueueScheduledJob(
   private val taskService: KoolQueueJobsService,
   private val readyExecutionService: KoolQueueReadyExecutionService,
